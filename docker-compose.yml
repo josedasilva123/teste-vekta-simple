@@ -1,0 +1,49 @@
+# Stack completa: MongoDB + API + Web
+# Pré-requisito: copie api/.env.example → api/.env e ajuste as variáveis
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: chatterbox-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./api
+      dockerfile: docker/Dockerfile
+    container_name: chatterbox-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./api/.env
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+      dockerfile: docker/Dockerfile
+    container_name: chatterbox-web
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - api
+
+volumes:
+  mongodb_data:
