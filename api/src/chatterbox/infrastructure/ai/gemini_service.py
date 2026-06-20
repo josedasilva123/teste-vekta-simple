@@ -1,11 +1,12 @@
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
 from google import genai
 from google.genai import errors, types
 
 from chatterbox.domain.entities.ai_stream_event import AIStreamEvent
 from chatterbox.domain.entities.message import Message
-from chatterbox.domain.enums.sender_role import SenderRole
+from chatterbox.domain.policies.conversation_history import latest_user_message_content
 from chatterbox.domain.policies.prompt_injection_guard import (
     InjectionRisk,
     assess_injection_risk,
@@ -17,6 +18,13 @@ from chatterbox.infrastructure.ai.response_finalizer import finalize_ai_response
 from chatterbox.infrastructure.config.settings import Settings
 
 
+@dataclass(frozen=True)
+class _PreparedGeneration:
+    latest_user_message: str
+    contents: list[types.Content]
+    fallback: str | None
+
+
 class GeminiService:
     def __init__(self, settings: Settings) -> None:
         self._client = genai.Client(api_key=settings.gemini_api_key)
@@ -25,50 +33,56 @@ class GeminiService:
         self._settings = settings
 
     async def generate_reply(self, history: list[Message]) -> str:
-        latest_user_message = _latest_user_message(history)
-        if latest_user_message and assess_injection_risk(latest_user_message) == InjectionRisk.HIGH:
-            return get_injection_fallback_response(latest_user_message)
+        prepared = self._prepare(history)
+        if prepared.fallback is not None:
+            return prepared.fallback
 
-        contents = build_model_contents(history, self._settings.ai_max_history_turns)
-        response_text = await self._generate(contents, FLAT_EARTH_SYSTEM_PROMPT)
+        response_text = await self._generate_with_fallback(prepared.contents, FLAT_EARTH_SYSTEM_PROMPT)
 
         return await finalize_ai_response(
-            latest_user_message,
+            prepared.latest_user_message,
             response_text,
-            lambda: self._generate(
-                contents,
+            lambda: self._generate_with_fallback(
+                prepared.contents,
                 f"{FLAT_EARTH_SYSTEM_PROMPT}\n\n{RETRY_SYSTEM_APPENDIX}",
             ),
         )
 
     async def generate_reply_stream(self, history: list[Message]) -> AsyncIterator[AIStreamEvent]:
-        latest_user_message = _latest_user_message(history)
-        if latest_user_message and assess_injection_risk(latest_user_message) == InjectionRisk.HIGH:
-            fallback = get_injection_fallback_response(latest_user_message)
-            yield AIStreamEvent(kind="chunk", content=fallback)
+        prepared = self._prepare(history)
+        if prepared.fallback is not None:
+            yield AIStreamEvent(kind="chunk", content=prepared.fallback)
             return
 
-        contents = build_model_contents(history, self._settings.ai_max_history_turns)
         accumulated = ""
 
-        async for event in self._stream_with_fallback(contents, FLAT_EARTH_SYSTEM_PROMPT):
+        async for event in self._stream_with_fallback(prepared.contents, FLAT_EARTH_SYSTEM_PROMPT):
             if event.kind == "chunk":
                 accumulated += event.content
             yield event
 
         final_text = await finalize_ai_response(
-            latest_user_message,
+            prepared.latest_user_message,
             accumulated,
-            lambda: self._generate(
-                contents,
+            lambda: self._generate_with_fallback(
+                prepared.contents,
                 f"{FLAT_EARTH_SYSTEM_PROMPT}\n\n{RETRY_SYSTEM_APPENDIX}",
             ),
         )
         if final_text != accumulated:
             yield AIStreamEvent(kind="replace", content=final_text)
 
-    async def _generate(self, contents: list[types.Content], system_instruction: str) -> str:
-        return await self._generate_with_fallback(contents, system_instruction)
+    def _prepare(self, history: list[Message]) -> _PreparedGeneration:
+        latest_user_message = latest_user_message_content(history)
+        if latest_user_message and assess_injection_risk(latest_user_message) == InjectionRisk.HIGH:
+            return _PreparedGeneration(
+                latest_user_message,
+                [],
+                get_injection_fallback_response(latest_user_message),
+            )
+
+        contents = build_model_contents(history, self._settings.ai_max_history_turns)
+        return _PreparedGeneration(latest_user_message, contents, None)
 
     def _generation_config(self, system_instruction: str) -> types.GenerateContentConfig:
         return types.GenerateContentConfig(
@@ -117,10 +131,3 @@ class GeminiService:
             except errors.APIError:
                 if model == self._fallback_model:
                     raise
-
-
-def _latest_user_message(history: list[Message]) -> str:
-    for item in reversed(history):
-        if item.sender == SenderRole.USER:
-            return item.content
-    return ""

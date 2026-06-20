@@ -1,13 +1,10 @@
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
-from chatterbox.application.services.outgoing_user_message import (
-    build_ai_history,
-    resolve_outgoing_user_message,
-)
+from chatterbox.application.services.message_turn import prepare_message_turn
+from chatterbox.domain.entities.ai_stream_event import AIStreamEvent
 from chatterbox.domain.entities.message import Message
 from chatterbox.domain.enums.sender_role import SenderRole
-from chatterbox.domain.exceptions import ConversationNotFoundError
 from chatterbox.domain.ports.ai_service import AIService
 from chatterbox.domain.ports.conversation_repository import ConversationRepository
 
@@ -19,24 +16,12 @@ class StreamUserMessageEvent:
 
 
 @dataclass
-class StreamChunkEvent:
-    type: str
-    content: str
-
-
-@dataclass
-class StreamReplaceEvent:
-    type: str
-    content: str
-
-
-@dataclass
 class StreamDoneEvent:
     type: str
     ai_message: Message
 
 
-StreamEvent = StreamUserMessageEvent | StreamChunkEvent | StreamReplaceEvent | StreamDoneEvent
+StreamEvent = StreamUserMessageEvent | StreamDoneEvent | AIStreamEvent
 
 
 class SendMessageStreamUseCase:
@@ -53,30 +38,22 @@ class SendMessageStreamUseCase:
         conversation_id: str,
         content: str,
     ) -> AsyncIterator[StreamEvent]:
-        conversation = await self._conversation_repository.get_by_id(conversation_id)
-        if conversation is None:
-            raise ConversationNotFoundError(f"Conversa {conversation_id} não encontrada")
+        turn = await prepare_message_turn(self._conversation_repository, conversation_id, content)
 
-        outgoing = resolve_outgoing_user_message(conversation.messages, conversation_id, content)
-        user_message = outgoing.message
+        if turn.user_message_is_new:
+            yield StreamUserMessageEvent(type="user_message", user_message=turn.user_message)
 
-        if outgoing.is_new:
-            await self._conversation_repository.add_message(user_message)
-            yield StreamUserMessageEvent(type="user_message", user_message=user_message)
-
-        history = build_ai_history(conversation.messages, outgoing)
         accumulated = ""
 
-        async for event in self._ai_service.generate_reply_stream(history):
+        async for event in self._ai_service.generate_reply_stream(turn.history):
             if event.kind == "chunk":
                 accumulated += event.content
-                yield StreamChunkEvent(type="chunk", content=event.content)
             elif event.kind == "replace":
                 accumulated = event.content
-                yield StreamReplaceEvent(type="replace", content=event.content)
+            yield event
 
         ai_message = Message(
-            conversation_id=conversation_id,
+            conversation_id=turn.conversation_id,
             sender=SenderRole.AI,
             content=accumulated,
         )
