@@ -1,17 +1,11 @@
-import { useCallback, useMemo, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 
 import { ChatContext } from '@/domains/chat/chat-context'
+import { useChatSession } from '@/domains/chat/hooks/useChatSession'
 import { useChatWebSocket } from '@/domains/chat/hooks/useChatWebSocket'
-import { useConversationMessages } from '@/domains/chat/hooks/useConversationMessages'
-import { useSingleConversation } from '@/domains/chat/hooks/useSingleConversation'
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const { conversationId, isLoading: isLoadingConversation, pageError, resetConversation } =
-    useSingleConversation()
-
-  const handleLoadError = useCallback(() => {
-    resetConversation()
-  }, [resetConversation])
+  const { conversationId, initialMessages, isLoading, pageError } = useChatSession()
 
   const {
     messages,
@@ -21,43 +15,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     canRetry,
     sendMessage,
     retryLastMessage,
-    setMessages,
-    clearMessages,
     finishTypingAnimation,
   } = useChatWebSocket({
     conversationId,
-    enabled: !isLoadingConversation && Boolean(conversationId),
-  })
-
-  const isLoadingMessages = useConversationMessages({
-    activeConversationId: conversationId,
-    setMessages,
-    clearMessages,
-    onLoadError: handleLoadError,
+    initialMessages,
+    enabled: !isLoading && Boolean(conversationId),
   })
 
   const value = useMemo(
     () => ({
-      conversationId,
-      isLoadingConversation,
+      isLoading,
       pageError,
       messages,
-      isLoadingMessages,
-      isConnected: conversationId ? Boolean(isConnected) : !isLoadingConversation,
-      isSending,
-      chatError,
-      canRetry,
-      sendMessage,
-      retryLastMessage,
-      finishTypingAnimation,
-      resetConversation,
-    }),
-    [
-      conversationId,
-      isLoadingConversation,
-      pageError,
-      messages,
-      isLoadingMessages,
       isConnected,
       isSending,
       chatError,
@@ -65,7 +34,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       sendMessage,
       retryLastMessage,
       finishTypingAnimation,
-      resetConversation,
+    }),
+    [
+      isLoading,
+      pageError,
+      messages,
+      isConnected,
+      isSending,
+      chatError,
+      canRetry,
+      sendMessage,
+      retryLastMessage,
+      finishTypingAnimation,
     ],
   )
 

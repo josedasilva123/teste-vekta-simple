@@ -8,7 +8,7 @@ import {
   removeStreamingMessage,
   replaceStreamContent,
 } from '@/domains/chat/chat-stream'
-import type { ChatMessage, WsIncomingEvent } from '@/domains/chat/types'
+import type { ChatMessage, WsIncomingEvent, WsOutgoingMessage } from '@/domains/chat/types'
 
 const INITIAL_RECONNECT_DELAY_MS = 1_000
 const MAX_RECONNECT_DELAY_MS = 10_000
@@ -16,6 +16,7 @@ const NON_RECONNECTABLE_CLOSE_CODES = new Set([4404])
 
 type UseChatWebSocketOptions = {
   conversationId: string | null
+  initialMessages: ChatMessage[]
   enabled?: boolean
 }
 
@@ -27,8 +28,6 @@ type UseChatWebSocketResult = {
   canRetry: boolean
   sendMessage: (content: string) => boolean
   retryLastMessage: () => boolean
-  setMessages: (messages: ChatMessage[]) => void
-  clearMessages: () => void
   finishTypingAnimation: () => void
 }
 
@@ -53,6 +52,7 @@ function parseIncomingEvent(raw: string): WsIncomingEvent | null {
 
 export function useChatWebSocket({
   conversationId,
+  initialMessages,
   enabled = true,
 }: UseChatWebSocketOptions): UseChatWebSocketResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -63,20 +63,25 @@ export function useChatWebSocket({
   const wsRef = useRef<WebSocket | null>(null)
   const lastSentContentRef = useRef<string | null>(null)
 
-  const resetStreamingState = useCallback(() => {
-    setMessages((current) => removeStreamingMessage(current))
+  const resetLiveState = useCallback(() => {
     setIsSending(false)
-  }, [])
-
-  const clearMessages = useCallback(() => {
-    setMessages([])
-    resetStreamingState()
     setError(null)
     setRetryContent(null)
     lastSentContentRef.current = null
-  }, [resetStreamingState])
+  }, [])
 
   const canConnect = enabled && Boolean(conversationId)
+
+  useEffect(() => {
+    if (!conversationId) {
+      setMessages([])
+      resetLiveState()
+      return
+    }
+
+    setMessages(removeStreamingMessage(initialMessages))
+    resetLiveState()
+  }, [conversationId, initialMessages, resetLiveState])
 
   useEffect(() => {
     if (!canConnect || !conversationId) {
@@ -86,16 +91,6 @@ export function useChatWebSocket({
     let disposed = false
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined
     let reconnectAttempt = 0
-
-    const resetSessionState = () => {
-      setMessages((current) => removeStreamingMessage(current))
-      setIsSending(false)
-      setError(null)
-      setRetryContent(null)
-      lastSentContentRef.current = null
-    }
-
-    resetSessionState()
 
     const scheduleReconnect = (closeCode: number) => {
       if (disposed || NON_RECONNECTABLE_CLOSE_CODES.has(closeCode)) {
@@ -222,7 +217,9 @@ export function useChatWebSocket({
     setRetryContent(null)
     setMessages((current) => removeStreamingMessage(current))
     setIsSending(true)
-    wsRef.current.send(JSON.stringify({ type: 'message', content: trimmed }))
+
+    const payload: WsOutgoingMessage = { type: 'message', content: trimmed }
+    wsRef.current.send(JSON.stringify(payload))
     return true
   }, [])
 
@@ -243,8 +240,6 @@ export function useChatWebSocket({
     canRetry: Boolean(retryContent),
     sendMessage,
     retryLastMessage,
-    setMessages,
-    clearMessages,
     finishTypingAnimation,
   }
 }

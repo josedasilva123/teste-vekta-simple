@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator
 
 from chatterbox.domain.entities.ai_stream_event import AIStreamEvent
 from chatterbox.domain.entities.message import Message
-from chatterbox.domain.enums.sender_role import SenderRole
+from chatterbox.domain.policies.conversation_history import latest_user_message_content
 from chatterbox.domain.policies.prompt_injection_guard import (
     InjectionRisk,
     assess_injection_risk,
@@ -31,10 +31,7 @@ class FakeAIService:
             yield AIStreamEvent(kind="replace", content=reply)
 
     async def _build_reply(self, history: list[Message]) -> str:
-        last_user_message = next(
-            (message.content for message in reversed(history) if message.sender == SenderRole.USER),
-            "",
-        )
+        last_user_message = latest_user_message_content(history)
 
         if assess_injection_risk(last_user_message) == InjectionRisk.HIGH:
             return get_injection_fallback_response(last_user_message)

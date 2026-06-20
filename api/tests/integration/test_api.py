@@ -84,29 +84,33 @@ def test_websocket_invalid_payload_returns_error(ws_client: TestClient) -> None:
     assert event["type"] == "error"
 
 
-def test_websocket_ai_failure_keeps_connection_open(ws_client: TestClient, monkeypatch) -> None:
+def test_websocket_ai_failure_keeps_connection_open(
+    ws_client: TestClient, ws_test_app, monkeypatch
+) -> None:
     class FailingAIService:
         async def generate_reply_stream(self, history):
             raise RuntimeError("AI indisponível")
             yield  # pragma: no cover
 
-    monkeypatch.setattr(
-        "chatterbox.presentation.api.routers.conversations_ws._build_ai_service",
-        lambda: FailingAIService(),
-    )
+    from chatterbox.presentation.dependencies import get_ai_service
+
+    ws_test_app.dependency_overrides[get_ai_service] = lambda: FailingAIService()
 
     create_response = ws_client.post("/api/v1/conversations")
     conversation_id = create_response.json()["id"]
 
-    with ws_client.websocket_connect(f"/api/v1/conversations/{conversation_id}/ws") as websocket:
-        websocket.send_json({"type": "message", "content": "Teste de falha"})
+    try:
+        with ws_client.websocket_connect(f"/api/v1/conversations/{conversation_id}/ws") as websocket:
+            websocket.send_json({"type": "message", "content": "Teste de falha"})
 
-        user_event = json.loads(websocket.receive_text())
-        assert user_event["type"] == "user_message"
+            user_event = json.loads(websocket.receive_text())
+            assert user_event["type"] == "user_message"
 
-        error_event = json.loads(websocket.receive_text())
-        assert error_event["type"] == "error"
+            error_event = json.loads(websocket.receive_text())
+            assert error_event["type"] == "error"
 
-        websocket.send_json({"type": "message", "content": "Segunda tentativa"})
-        second_user_event = json.loads(websocket.receive_text())
-        assert second_user_event["type"] == "user_message"
+            websocket.send_json({"type": "message", "content": "Segunda tentativa"})
+            second_user_event = json.loads(websocket.receive_text())
+            assert second_user_event["type"] == "user_message"
+    finally:
+        ws_test_app.dependency_overrides.pop(get_ai_service, None)

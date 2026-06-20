@@ -35,10 +35,6 @@ def patched_settings(monkeypatch, test_settings: Settings):
         "chatterbox.presentation.dependencies.settings",
         test_settings,
     )
-    monkeypatch.setattr(
-        "chatterbox.presentation.api.routers.conversations_ws.settings",
-        test_settings,
-    )
 
 
 @pytest.fixture

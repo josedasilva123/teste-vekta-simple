@@ -14,3 +14,10 @@ def trim_history(history: list[Message], max_turns: int = 10) -> list[Message]:
         trimmed.pop(0)
 
     return trimmed
+
+
+def latest_user_message_content(messages: list[Message]) -> str:
+    for message in reversed(messages):
+        if message.sender == SenderRole.USER:
+            return message.content
+    return ""

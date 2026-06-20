@@ -2,7 +2,11 @@ import pytest
 
 from chatterbox.application.use_cases.get_conversation import GetConversationUseCase
 from chatterbox.application.use_cases.send_message import SendMessageUseCase
-from chatterbox.application.use_cases.send_message_stream import SendMessageStreamUseCase
+from chatterbox.application.use_cases.send_message_stream import (
+    SendMessageStreamUseCase,
+    StreamDoneEvent,
+    StreamUserMessageEvent,
+)
 from chatterbox.application.use_cases.start_conversation import StartConversationUseCase
 from chatterbox.domain.entities.message import Message
 from chatterbox.domain.enums.sender_role import SenderRole
@@ -82,8 +86,8 @@ async def test_send_message_stream_skips_duplicate_user_event_on_retry(
 
     events = [event async for event in use_case.execute(conversation.id, "Olá")]
 
-    assert not any(event.type == "user_message" for event in events)
-    assert any(event.type == "done" for event in events)
+    assert not any(isinstance(event, StreamUserMessageEvent) for event in events)
+    assert any(isinstance(event, StreamDoneEvent) for event in events)
 
 
 @pytest.mark.asyncio

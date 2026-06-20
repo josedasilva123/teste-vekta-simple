@@ -1,26 +1,20 @@
 import json
-from dataclasses import asdict
+from typing import Annotated
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from chatterbox.application.use_cases.send_message_stream import (
     SendMessageStreamUseCase,
-    StreamChunkEvent,
     StreamDoneEvent,
-    StreamReplaceEvent,
     StreamUserMessageEvent,
 )
+from chatterbox.domain.entities.ai_stream_event import AIStreamEvent
 from chatterbox.domain.exceptions import ConversationNotFoundError
 from chatterbox.infrastructure.ai.error_messages import format_ai_error
-from chatterbox.infrastructure.ai.fake_ai_service import FakeAIService
-from chatterbox.infrastructure.ai.gemini_service import GeminiService
-from chatterbox.infrastructure.config.settings import settings
-from chatterbox.infrastructure.persistence.mongo_conversation_repository import (
-    MongoConversationRepository,
-)
 from chatterbox.presentation.api.mappers import to_message_schema
 from chatterbox.presentation.api.schemas.websocket import WebSocketClientMessage
+from chatterbox.presentation.dependencies import get_send_message_stream_use_case
 
 router = APIRouter(prefix="/conversations", tags=["conversations-ws"])
 
@@ -29,11 +23,9 @@ router = APIRouter(prefix="/conversations", tags=["conversations-ws"])
 async def conversation_websocket(
     websocket: WebSocket,
     conversation_id: str,
+    use_case: Annotated[SendMessageStreamUseCase, Depends(get_send_message_stream_use_case)],
 ) -> None:
     await websocket.accept()
-    repository = MongoConversationRepository(websocket.app.state.mongo_database)
-    ai_service = _build_ai_service()
-    use_case = SendMessageStreamUseCase(repository, ai_service)
 
     try:
         while True:
@@ -60,12 +52,6 @@ async def conversation_websocket(
         return
 
 
-def _build_ai_service():
-    if settings.ai_provider.lower() == "fake":
-        return FakeAIService()
-    return GeminiService(settings)
-
-
 def _serialize_stream_event(event) -> dict:
     if isinstance(event, StreamUserMessageEvent):
         return {
@@ -77,7 +63,9 @@ def _serialize_stream_event(event) -> dict:
             "type": event.type,
             "ai_message": to_message_schema(event.ai_message).model_dump(mode="json"),
         }
-    return asdict(event)
+    if isinstance(event, AIStreamEvent):
+        return {"type": event.kind, "content": event.content}
+    raise TypeError(f"Evento de stream não suportado: {type(event)!r}")
 
 
 async def _send_event(websocket: WebSocket, payload: dict) -> None:

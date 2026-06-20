@@ -2,11 +2,9 @@ import { createContext, useContext } from 'react'
 import type { ChatMessage } from '@/domains/chat/types'
 
 export type ChatContextValue = {
-  conversationId: string | null
-  isLoadingConversation: boolean
+  isLoading: boolean
   pageError: string | null
   messages: ChatMessage[]
-  isLoadingMessages: boolean
   isConnected: boolean
   isSending: boolean
   chatError: string | null
@@ -14,7 +12,6 @@ export type ChatContextValue = {
   sendMessage: (content: string) => boolean
   retryLastMessage: () => boolean
   finishTypingAnimation: () => void
-  resetConversation: () => void
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null)
