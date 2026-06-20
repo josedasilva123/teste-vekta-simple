@@ -1,6 +1,7 @@
 import { render, screen, act } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatMessage } from '@/components/molecules/ChatMessage'
+import { TYPEWRITER_CHAR_INTERVAL_MS } from '@/domains/chat/hooks/useTypewriter'
 
 describe('ChatMessage', () => {
   afterEach(() => {
@@ -21,13 +22,13 @@ describe('ChatMessage', () => {
     expect(screen.queryByText('Olá')).not.toBeInTheDocument()
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(35)
+      await vi.advanceTimersByTimeAsync(TYPEWRITER_CHAR_INTERVAL_MS)
     })
 
     expect(screen.getByText('O')).toBeInTheDocument()
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(35 * 3)
+      await vi.advanceTimersByTimeAsync(TYPEWRITER_CHAR_INTERVAL_MS * 2)
     })
 
     expect(screen.getByText('Olá')).toBeInTheDocument()

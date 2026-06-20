@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+/** Intervalo entre cada caractere exibido (~8 chars/s). */
+export const TYPEWRITER_CHAR_INTERVAL_MS = 100
+
 type UseTypewriterOptions = {
   enabled?: boolean
   intervalMs?: number
@@ -8,7 +11,11 @@ type UseTypewriterOptions = {
 
 export function useTypewriter(
   text: string,
-  { enabled = false, intervalMs = 35, onComplete }: UseTypewriterOptions = {},
+  {
+    enabled = false,
+    intervalMs = TYPEWRITER_CHAR_INTERVAL_MS,
+    onComplete,
+  }: UseTypewriterOptions = {},
 ) {
   const [revealedLength, setRevealedLength] = useState(enabled ? 0 : text.length)
   const textRef = useRef(text)
@@ -49,21 +56,26 @@ export function useTypewriter(
     timerRef.current = setTimeout(step, intervalMs)
   }, [enabled, intervalMs, syncReveal])
 
-  useEffect(() => {
-    stopTyping()
+  useEffect(() => stopTyping, [stopTyping])
 
-    if (!enabled) {
-      syncReveal(text.length)
-      completedLengthRef.current = text.length
-      previousTextRef.current = text
-      return
-    }
+  useEffect(() => {
+    if (enabled) return
+
+    stopTyping()
+    syncReveal(text.length)
+    completedLengthRef.current = text.length
+    previousTextRef.current = text
+  }, [enabled, text, stopTyping, syncReveal])
+
+  useEffect(() => {
+    if (!enabled) return
 
     const previousText = previousTextRef.current
     previousTextRef.current = text
     const isAppend = previousText === '' || text.startsWith(previousText)
 
     if (!isAppend) {
+      stopTyping()
       syncReveal(text.length)
       return
     }
@@ -75,8 +87,6 @@ export function useTypewriter(
     if (revealedRef.current < text.length) {
       scheduleTyping()
     }
-
-    return stopTyping
   }, [text, enabled, scheduleTyping, stopTyping, syncReveal])
 
   const displayed = enabled ? text.slice(0, revealedLength) : text

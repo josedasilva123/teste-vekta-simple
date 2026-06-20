@@ -1,6 +1,7 @@
 import { render, screen, act } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TypewriterText } from '@/components/atoms/TypewriterText'
+import { TYPEWRITER_CHAR_INTERVAL_MS } from '@/domains/chat/hooks/useTypewriter'
 
 describe('TypewriterText', () => {
   afterEach(() => {
@@ -19,7 +20,7 @@ describe('TypewriterText', () => {
     expect(screen.getByText('▍')).toBeInTheDocument()
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(35 * 3)
+      await vi.advanceTimersByTimeAsync(TYPEWRITER_CHAR_INTERVAL_MS * 3)
     })
 
     expect(screen.getByText('Olá')).toBeInTheDocument()
