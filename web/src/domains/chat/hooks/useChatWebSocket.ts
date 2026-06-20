@@ -7,6 +7,22 @@ const MAX_RECONNECT_DELAY_MS = 10_000
 const NON_RECONNECTABLE_CLOSE_CODES = new Set([4404])
 const STREAMING_MESSAGE_ID = 'streaming-ai'
 
+function withoutStreamingMessage(messages: ChatMessage[]): ChatMessage[] {
+  return messages.filter((message) => message.id !== STREAMING_MESSAGE_ID)
+}
+
+function upsertStreamingMessage(messages: ChatMessage[], content: string): ChatMessage[] {
+  return [
+    ...withoutStreamingMessage(messages),
+    {
+      id: STREAMING_MESSAGE_ID,
+      sender: 'AI',
+      content,
+      streaming: true,
+    },
+  ]
+}
+
 type UseChatWebSocketOptions = {
   conversationId: string | null
   enabled?: boolean
@@ -49,20 +65,15 @@ export function useChatWebSocket({
   enabled = true,
 }: UseChatWebSocketOptions): UseChatWebSocketResult {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [streamingText, setStreamingText] = useState('')
   const [isConnected, setIsConnected] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [retryContent, setRetryContent] = useState<string | null>(null)
-  const [awaitingFinalize, setAwaitingFinalize] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
-  const pendingFinalMessageRef = useRef<ChatMessage | null>(null)
   const lastSentContentRef = useRef<string | null>(null)
 
   const resetStreamingState = useCallback(() => {
-    pendingFinalMessageRef.current = null
-    setStreamingText('')
-    setAwaitingFinalize(false)
+    setMessages((current) => withoutStreamingMessage(current))
     setIsSending(false)
   }, [])
 
@@ -86,9 +97,7 @@ export function useChatWebSocket({
     let reconnectAttempt = 0
 
     const resetSessionState = () => {
-      pendingFinalMessageRef.current = null
-      setStreamingText('')
-      setAwaitingFinalize(false)
+      setMessages((current) => withoutStreamingMessage(current))
       setIsSending(false)
       setError(null)
       setRetryContent(null)
@@ -164,23 +173,29 @@ export function useChatWebSocket({
         }
 
         if (data.type === 'chunk') {
-          setStreamingText((current) => current + data.content)
+          setMessages((current) => {
+            const streaming = current.find((message) => message.id === STREAMING_MESSAGE_ID)
+            return upsertStreamingMessage(current, (streaming?.content ?? '') + data.content)
+          })
           return
         }
 
         if (data.type === 'replace') {
-          setStreamingText(data.content)
+          setMessages((current) => upsertStreamingMessage(current, data.content))
           return
         }
 
         if (data.type === 'done') {
-          pendingFinalMessageRef.current = {
-            id: data.ai_message.id,
-            sender: data.ai_message.sender,
-            content: data.ai_message.content,
-          }
-          setStreamingText(data.ai_message.content)
-          setAwaitingFinalize(true)
+          setMessages((current) => [
+            ...withoutStreamingMessage(current),
+            {
+              id: data.ai_message.id,
+              sender: data.ai_message.sender,
+              content: data.ai_message.content,
+              streaming: true,
+              finalizeOnComplete: true,
+            },
+          ])
           setIsSending(false)
           setRetryContent(null)
           return
@@ -189,9 +204,7 @@ export function useChatWebSocket({
         if (data.type === 'error') {
           setError(data.detail ?? 'Erro ao processar mensagem')
           setRetryContent(lastSentContentRef.current)
-          pendingFinalMessageRef.current = null
-          setStreamingText('')
-          setAwaitingFinalize(false)
+          setMessages((current) => withoutStreamingMessage(current))
           setIsSending(false)
         }
       }
@@ -216,13 +229,17 @@ export function useChatWebSocket({
   }, [canConnect, conversationId])
 
   const finalizeStreamingMessage = useCallback(() => {
-    const pending = pendingFinalMessageRef.current
-    if (!pending) return
-
-    setMessages((current) => [...current, pending])
-    pendingFinalMessageRef.current = null
-    setStreamingText('')
-    setAwaitingFinalize(false)
+    setMessages((current) =>
+      current.map((message) =>
+        message.finalizeOnComplete
+          ? {
+              id: message.id,
+              sender: message.sender,
+              content: message.content,
+            }
+          : message,
+      ),
+    )
   }, [])
 
   const sendMessage = useCallback((content: string) => {
@@ -241,6 +258,7 @@ export function useChatWebSocket({
 
     setError(null)
     setRetryContent(null)
+    setMessages((current) => withoutStreamingMessage(current))
     setIsSending(true)
     wsRef.current.send(JSON.stringify({ type: 'message', content: trimmed }))
     return true
@@ -255,21 +273,8 @@ export function useChatWebSocket({
     return sendMessage(content)
   }, [retryContent, sendMessage])
 
-  const displayMessages = streamingText
-    ? [
-        ...messages,
-        {
-          id: STREAMING_MESSAGE_ID,
-          sender: 'AI' as const,
-          content: streamingText,
-          streaming: true,
-          finalizeOnComplete: awaitingFinalize,
-        },
-      ]
-    : messages
-
   return {
-    messages: displayMessages,
+    messages,
     isConnected: canConnect && isConnected,
     isSending,
     error,

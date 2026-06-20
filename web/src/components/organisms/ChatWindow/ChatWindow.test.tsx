@@ -14,7 +14,7 @@ const sampleMessages: ChatMessage[] = [
 
 describe('ChatWindow', () => {
   beforeEach(() => {
-    Element.prototype.scrollIntoView = vi.fn()
+    Element.prototype.scrollTo = vi.fn()
   })
 
   it('exibe spinner durante carregamento', () => {

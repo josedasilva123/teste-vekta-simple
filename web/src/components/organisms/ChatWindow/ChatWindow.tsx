@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { ChatMessage } from '@/components/molecules/ChatMessage'
 import { ChatInput } from '@/components/molecules/ChatInput'
 import { Button } from '@/components/atoms/Button'
 import { Spinner } from '@/components/atoms/Spinner'
 import type { ChatMessage as ChatMessageType } from '@/domains/chat/types'
+
+const SCROLL_BOTTOM_THRESHOLD_PX = 80
 
 type ChatWindowProps = {
   messages: ChatMessageType[]
@@ -28,19 +30,64 @@ export function ChatWindow({
   onRetry,
   onStreamingTypingComplete,
 }: ChatWindowProps) {
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const isPinnedToBottomRef = useRef(true)
+  const previousMessageCountRef = useRef(0)
 
-  const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const isNearBottom = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return true
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight
+
+    return distanceFromBottom <= SCROLL_BOTTOM_THRESHOLD_PX
+  }, [])
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    if (typeof container.scrollTo === 'function') {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior,
+      })
+      return
+    }
+
+    container.scrollTop = container.scrollHeight
+  }, [])
+
+  const handleScroll = useCallback(() => {
+    isPinnedToBottomRef.current = isNearBottom()
+  }, [isNearBottom])
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    if (isLoading) return
+
+    const hasNewMessage = messages.length > previousMessageCountRef.current
+    previousMessageCountRef.current = messages.length
+
+    if (hasNewMessage || isPinnedToBottomRef.current) {
+      scrollToBottom(hasNewMessage ? 'smooth' : 'auto')
+      isPinnedToBottomRef.current = true
+    }
+  }, [isLoading, messages, scrollToBottom])
+
+  const handleStreamingProgress = useCallback(() => {
+    if (isPinnedToBottomRef.current) {
+      scrollToBottom('auto')
+    }
+  }, [scrollToBottom])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto"
+      >
         {isLoading ? (
           <div className="flex h-full items-center justify-center">
             <Spinner />
@@ -66,10 +113,9 @@ export function ChatWindow({
                     ? onStreamingTypingComplete
                     : undefined
                 }
-                onTypingProgress={message.streaming ? scrollToBottom : undefined}
+                onTypingProgress={message.streaming ? handleStreamingProgress : undefined}
               />
             ))}
-            <div ref={bottomRef} />
           </div>
         )}
       </div>
