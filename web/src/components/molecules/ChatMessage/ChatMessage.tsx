@@ -5,14 +5,18 @@ type ChatMessageProps = {
   sender: SenderRole
   content: string
   streaming?: boolean
+  streamEnded?: boolean
   onTypingProgress?: () => void
+  onTypingComplete?: () => void
 }
 
 export function ChatMessage({
   sender,
   content,
   streaming = false,
+  streamEnded = false,
   onTypingProgress,
+  onTypingComplete,
 }: ChatMessageProps) {
   const isUser = sender === 'USER'
 
@@ -35,6 +39,7 @@ export function ChatMessage({
               active
               showCursor
               onProgress={onTypingProgress}
+              onComplete={streamEnded ? onTypingComplete : undefined}
             />
           ) : (
             content

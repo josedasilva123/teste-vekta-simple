@@ -19,7 +19,13 @@ describe('useTypewriter', () => {
     expect(result.current.displayed).toBe('')
 
     await act(async () => {
-      await vi.runAllTimersAsync()
+      await vi.advanceTimersByTimeAsync(10)
+    })
+
+    expect(result.current.displayed).toBe('O')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20)
     })
 
     expect(result.current.displayed).toBe('Olá')
@@ -28,10 +34,29 @@ describe('useTypewriter', () => {
     rerender({ text: 'Olá mundo' })
 
     await act(async () => {
-      await vi.runAllTimersAsync()
+      await vi.advanceTimersByTimeAsync(60)
     })
 
     expect(result.current.displayed).toBe('Olá mundo')
+  })
+
+  it('não revela o texto inteiro quando o conteúdo chega de uma vez', async () => {
+    vi.useFakeTimers()
+
+    const { result, rerender } = renderHook(
+      ({ text }) => useTypewriter(text, { enabled: true, intervalMs: 10 }),
+      { initialProps: { text: '' } },
+    )
+
+    rerender({ text: 'Resposta longa de uma só vez' })
+
+    expect(result.current.displayed).toBe('')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30)
+    })
+
+    expect(result.current.displayed).toBe('Res')
   })
 
   it('exibe o texto completo imediatamente quando inativo', () => {

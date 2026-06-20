@@ -19,7 +19,7 @@ describe('TypewriterText', () => {
     expect(screen.getByText('▍')).toBeInTheDocument()
 
     await act(async () => {
-      await vi.runAllTimersAsync()
+      await vi.advanceTimersByTimeAsync(35 * 3)
     })
 
     expect(screen.getByText('Olá')).toBeInTheDocument()

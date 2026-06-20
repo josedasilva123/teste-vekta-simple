@@ -28,6 +28,7 @@ describe('ChatMain', () => {
       canRetry: false,
       sendMessage: vi.fn(),
       retryLastMessage: vi.fn(),
+      finishTypingAnimation: vi.fn(),
       resetConversation: vi.fn(),
     })
 
@@ -54,6 +55,7 @@ describe('ChatMain', () => {
       canRetry: false,
       sendMessage: vi.fn(),
       retryLastMessage: vi.fn(),
+      finishTypingAnimation: vi.fn(),
       resetConversation: vi.fn(),
     })
 

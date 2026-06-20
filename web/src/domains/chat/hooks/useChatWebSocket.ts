@@ -4,6 +4,7 @@ import {
   appendStreamChunk,
   appendUserMessage,
   finalizeStreamedMessage,
+  finishTypingAnimation as finishTypingAnimationState,
   removeStreamingMessage,
   replaceStreamContent,
 } from '@/domains/chat/chat-stream'
@@ -28,6 +29,7 @@ type UseChatWebSocketResult = {
   retryLastMessage: () => boolean
   setMessages: (messages: ChatMessage[]) => void
   clearMessages: () => void
+  finishTypingAnimation: () => void
 }
 
 function closeWebSocket(ws: WebSocket): void {
@@ -198,6 +200,10 @@ export function useChatWebSocket({
     }
   }, [canConnect, conversationId])
 
+  const finishTypingAnimation = useCallback(() => {
+    setMessages((current) => finishTypingAnimationState(current))
+  }, [])
+
   const sendMessage = useCallback((content: string) => {
     const trimmed = content.trim()
     if (!trimmed) {
@@ -239,5 +245,6 @@ export function useChatWebSocket({
     retryLastMessage,
     setMessages,
     clearMessages,
+    finishTypingAnimation,
   }
 }

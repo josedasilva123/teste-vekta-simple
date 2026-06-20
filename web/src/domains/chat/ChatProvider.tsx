@@ -23,6 +23,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     retryLastMessage,
     setMessages,
     clearMessages,
+    finishTypingAnimation,
   } = useChatWebSocket({
     conversationId,
     enabled: !isLoadingConversation && Boolean(conversationId),
@@ -48,6 +49,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       canRetry,
       sendMessage,
       retryLastMessage,
+      finishTypingAnimation,
       resetConversation,
     }),
     [
@@ -62,6 +64,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       canRetry,
       sendMessage,
       retryLastMessage,
+      finishTypingAnimation,
       resetConversation,
     ],
   )

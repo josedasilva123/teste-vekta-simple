@@ -17,6 +17,7 @@ type ChatWindowProps = {
   error?: string | null
   canRetry?: boolean
   onRetry?: () => void
+  onTypingComplete?: () => void
 }
 
 export function ChatWindow({
@@ -28,6 +29,7 @@ export function ChatWindow({
   error,
   canRetry = false,
   onRetry,
+  onTypingComplete,
 }: ChatWindowProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isPinnedToBottomRef = useRef(true)
@@ -106,7 +108,11 @@ export function ChatWindow({
                 sender={message.sender}
                 content={message.content}
                 streaming={message.streaming}
+                streamEnded={message.streamEnded}
                 onTypingProgress={message.streaming ? handleTypingProgress : undefined}
+                onTypingComplete={
+                  message.streamEnded ? onTypingComplete : undefined
+                }
               />
             ))}
           </div>

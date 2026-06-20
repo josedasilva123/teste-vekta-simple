@@ -13,6 +13,7 @@ export function ChatMain() {
     isSending,
     sendMessage,
     retryLastMessage,
+    finishTypingAnimation,
   } = useChat()
 
   return (
@@ -31,6 +32,7 @@ export function ChatMain() {
         error={chatError}
         canRetry={canRetry}
         onRetry={retryLastMessage}
+        onTypingComplete={finishTypingAnimation}
       />
     </>
   )

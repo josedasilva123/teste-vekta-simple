@@ -4,6 +4,7 @@ import {
   appendStreamChunk,
   appendUserMessage,
   finalizeStreamedMessage,
+  finishTypingAnimation,
   removeStreamingMessage,
   replaceStreamContent,
 } from '@/domains/chat/chat-stream'
@@ -35,7 +36,7 @@ describe('chat-stream', () => {
     expect(replaced[0]).toMatchObject({ content: 'texto final', streaming: true })
   })
 
-  it('finaliza preservando o texto mais longo recebido', () => {
+  it('finaliza preservando o texto mais longo e mantém animação até concluir', () => {
     const messages: ChatMessage[] = [
       {
         id: STREAMING_MESSAGE_ID,
@@ -54,9 +55,33 @@ describe('chat-stream', () => {
 
     expect(finalized).toEqual([
       {
-        id: 'ai-1',
+        id: STREAMING_MESSAGE_ID,
         sender: 'AI',
         content: 'Resposta completa vinda do stream',
+        streaming: true,
+        streamEnded: true,
+        finalId: 'ai-1',
+      },
+    ])
+  })
+
+  it('conclui animação aplicando o id final da mensagem', () => {
+    const messages: ChatMessage[] = [
+      {
+        id: STREAMING_MESSAGE_ID,
+        sender: 'AI',
+        content: 'Resposta final',
+        streaming: true,
+        streamEnded: true,
+        finalId: 'ai-1',
+      },
+    ]
+
+    expect(finishTypingAnimation(messages)).toEqual([
+      {
+        id: 'ai-1',
+        sender: 'AI',
+        content: 'Resposta final',
       },
     ])
   })

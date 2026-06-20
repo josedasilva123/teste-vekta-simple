@@ -52,9 +52,26 @@ export function finalizeStreamedMessage(messages: ChatMessage[], aiMessage: Mess
   return [
     ...removeStreamingMessage(messages),
     {
-      id: aiMessage.id,
+      id: STREAMING_MESSAGE_ID,
       sender: aiMessage.sender,
       content,
+      streaming: true,
+      streamEnded: true,
+      finalId: aiMessage.id,
     },
   ]
+}
+
+export function finishTypingAnimation(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((message) => {
+    if (message.id !== STREAMING_MESSAGE_ID || !message.streamEnded) {
+      return message
+    }
+
+    return {
+      id: message.finalId ?? message.id,
+      sender: message.sender,
+      content: message.content,
+    }
+  })
 }

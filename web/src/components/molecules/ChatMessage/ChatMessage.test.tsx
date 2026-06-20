@@ -13,17 +13,24 @@ describe('ChatMessage', () => {
     expect(screen.getByText('V')).toBeInTheDocument()
   })
 
-  it('anima resposta da IA em streaming', async () => {
+  it('anima resposta da IA caractere a caractere', async () => {
     vi.useFakeTimers()
-    render(<ChatMessage sender="AI" content="Resposta parcial" streaming />)
+    render(<ChatMessage sender="AI" content="Olá" streaming />)
 
     expect(screen.getByText('▍')).toBeInTheDocument()
+    expect(screen.queryByText('Olá')).not.toBeInTheDocument()
 
     await act(async () => {
-      await vi.runAllTimersAsync()
+      await vi.advanceTimersByTimeAsync(35)
     })
 
-    expect(screen.getByText('Resposta parcial')).toBeInTheDocument()
+    expect(screen.getByText('O')).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(35 * 3)
+    })
+
+    expect(screen.getByText('Olá')).toBeInTheDocument()
   })
 
   it('exibe texto completo quando o streaming termina', () => {
