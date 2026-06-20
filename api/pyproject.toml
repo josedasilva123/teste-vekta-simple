@@ -1,0 +1,44 @@
+[tool.poetry]
+name = "chatterbox-api"
+version = "0.1.0"
+description = "ChatterBox Simple - REST API para conversas com IA"
+authors = ["ChatterBox Team"]
+readme = "README.md"
+packages = [{ include = "chatterbox", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115.0"
+uvicorn = { extras = ["standard"], version = "^0.32.0" }
+motor = "^3.6.0"
+pydantic = "^2.10.0"
+pydantic-settings = "^2.6.0"
+google-genai = "^1.0.0"
+python-dotenv = "^1.0.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+pytest-asyncio = "^0.24.0"
+httpx = "^0.28.0"
+mongomock-motor = "^0.0.35"
+ruff = "^0.8.0"
+
+[tool.poetry.scripts]
+chatterbox = "chatterbox.presentation.main:run"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
