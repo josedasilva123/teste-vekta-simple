@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/** Intervalo entre cada caractere exibido (~12 chars/s). */
-export const TYPEWRITER_CHAR_INTERVAL_MS = 65
+/** Intervalo entre cada caractere exibido (~46 chars/s). */
+export const TYPEWRITER_CHAR_INTERVAL_MS = 22
 
 type UseTypewriterOptions = {
   enabled?: boolean
