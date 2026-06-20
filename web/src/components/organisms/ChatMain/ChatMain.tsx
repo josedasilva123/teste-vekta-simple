@@ -13,7 +13,6 @@ export function ChatMain() {
     isSending,
     sendMessage,
     retryLastMessage,
-    finalizeStreamingMessage,
   } = useChat()
 
   return (
@@ -32,7 +31,6 @@ export function ChatMain() {
         error={chatError}
         canRetry={canRetry}
         onRetry={retryLastMessage}
-        onStreamingTypingComplete={finalizeStreamingMessage}
       />
     </>
   )

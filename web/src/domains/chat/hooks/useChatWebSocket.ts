@@ -1,27 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { buildWsUrl } from '@/config/env'
-import type { ChatMessage, Message, WsIncomingEvent } from '@/domains/chat/types'
+import {
+  appendStreamChunk,
+  appendUserMessage,
+  finalizeStreamedMessage,
+  removeStreamingMessage,
+  replaceStreamContent,
+} from '@/domains/chat/chat-stream'
+import type { ChatMessage, WsIncomingEvent } from '@/domains/chat/types'
 
 const INITIAL_RECONNECT_DELAY_MS = 1_000
 const MAX_RECONNECT_DELAY_MS = 10_000
 const NON_RECONNECTABLE_CLOSE_CODES = new Set([4404])
-const STREAMING_MESSAGE_ID = 'streaming-ai'
-
-function withoutStreamingMessage(messages: ChatMessage[]): ChatMessage[] {
-  return messages.filter((message) => message.id !== STREAMING_MESSAGE_ID)
-}
-
-function upsertStreamingMessage(messages: ChatMessage[], content: string): ChatMessage[] {
-  return [
-    ...withoutStreamingMessage(messages),
-    {
-      id: STREAMING_MESSAGE_ID,
-      sender: 'AI',
-      content,
-      streaming: true,
-    },
-  ]
-}
 
 type UseChatWebSocketOptions = {
   conversationId: string | null
@@ -38,7 +28,6 @@ type UseChatWebSocketResult = {
   retryLastMessage: () => boolean
   setMessages: (messages: ChatMessage[]) => void
   clearMessages: () => void
-  finalizeStreamingMessage: () => void
 }
 
 function closeWebSocket(ws: WebSocket): void {
@@ -73,7 +62,7 @@ export function useChatWebSocket({
   const lastSentContentRef = useRef<string | null>(null)
 
   const resetStreamingState = useCallback(() => {
-    setMessages((current) => withoutStreamingMessage(current))
+    setMessages((current) => removeStreamingMessage(current))
     setIsSending(false)
   }, [])
 
@@ -97,7 +86,7 @@ export function useChatWebSocket({
     let reconnectAttempt = 0
 
     const resetSessionState = () => {
-      setMessages((current) => withoutStreamingMessage(current))
+      setMessages((current) => removeStreamingMessage(current))
       setIsSending(false)
       setError(null)
       setRetryContent(null)
@@ -161,41 +150,22 @@ export function useChatWebSocket({
         }
 
         if (data.type === 'user_message') {
-          setMessages((current) => [
-            ...current.filter((message) => message.id !== data.message.id),
-            {
-              id: data.message.id,
-              sender: data.message.sender,
-              content: data.message.content,
-            },
-          ])
+          setMessages((current) => appendUserMessage(current, data.message))
           return
         }
 
         if (data.type === 'chunk') {
-          setMessages((current) => {
-            const streaming = current.find((message) => message.id === STREAMING_MESSAGE_ID)
-            return upsertStreamingMessage(current, (streaming?.content ?? '') + data.content)
-          })
+          setMessages((current) => appendStreamChunk(current, data.content))
           return
         }
 
         if (data.type === 'replace') {
-          setMessages((current) => upsertStreamingMessage(current, data.content))
+          setMessages((current) => replaceStreamContent(current, data.content))
           return
         }
 
         if (data.type === 'done') {
-          setMessages((current) => [
-            ...withoutStreamingMessage(current),
-            {
-              id: data.ai_message.id,
-              sender: data.ai_message.sender,
-              content: data.ai_message.content,
-              streaming: true,
-              finalizeOnComplete: true,
-            },
-          ])
+          setMessages((current) => finalizeStreamedMessage(current, data.ai_message))
           setIsSending(false)
           setRetryContent(null)
           return
@@ -204,7 +174,7 @@ export function useChatWebSocket({
         if (data.type === 'error') {
           setError(data.detail ?? 'Erro ao processar mensagem')
           setRetryContent(lastSentContentRef.current)
-          setMessages((current) => withoutStreamingMessage(current))
+          setMessages((current) => removeStreamingMessage(current))
           setIsSending(false)
         }
       }
@@ -228,20 +198,6 @@ export function useChatWebSocket({
     }
   }, [canConnect, conversationId])
 
-  const finalizeStreamingMessage = useCallback(() => {
-    setMessages((current) =>
-      current.map((message) =>
-        message.finalizeOnComplete
-          ? {
-              id: message.id,
-              sender: message.sender,
-              content: message.content,
-            }
-          : message,
-      ),
-    )
-  }, [])
-
   const sendMessage = useCallback((content: string) => {
     const trimmed = content.trim()
     if (!trimmed) {
@@ -258,7 +214,7 @@ export function useChatWebSocket({
 
     setError(null)
     setRetryContent(null)
-    setMessages((current) => withoutStreamingMessage(current))
+    setMessages((current) => removeStreamingMessage(current))
     setIsSending(true)
     wsRef.current.send(JSON.stringify({ type: 'message', content: trimmed }))
     return true
@@ -283,6 +239,5 @@ export function useChatWebSocket({
     retryLastMessage,
     setMessages,
     clearMessages,
-    finalizeStreamingMessage,
   }
 }

@@ -5,8 +5,6 @@ type ChatMessageProps = {
   sender: SenderRole
   content: string
   streaming?: boolean
-  finalizeOnComplete?: boolean
-  onTypingComplete?: () => void
   onTypingProgress?: () => void
 }
 
@@ -14,12 +12,9 @@ export function ChatMessage({
   sender,
   content,
   streaming = false,
-  finalizeOnComplete = false,
-  onTypingComplete,
   onTypingProgress,
 }: ChatMessageProps) {
   const isUser = sender === 'USER'
-  const animateAi = !isUser && streaming
 
   return (
     <div
@@ -34,12 +29,11 @@ export function ChatMessage({
       </div>
       <div className="min-w-0 flex-1 pt-0.5">
         <p className="whitespace-pre-wrap text-sm leading-6 text-[#ececec] sm:text-[15px] sm:leading-7">
-          {animateAi ? (
+          {!isUser && streaming ? (
             <TypewriterText
               text={content}
               active
               showCursor
-              onComplete={finalizeOnComplete ? onTypingComplete : undefined}
               onProgress={onTypingProgress}
             />
           ) : (

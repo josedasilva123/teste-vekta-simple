@@ -31,5 +31,4 @@ export type ChatMessage = {
   sender: SenderRole
   content: string
   streaming?: boolean
-  finalizeOnComplete?: boolean
 }

@@ -13,7 +13,6 @@ export type ChatContextValue = {
   canRetry: boolean
   sendMessage: (content: string) => boolean
   retryLastMessage: () => boolean
-  finalizeStreamingMessage: () => void
   resetConversation: () => void
 }
 

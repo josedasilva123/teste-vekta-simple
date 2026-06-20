@@ -3,6 +3,7 @@ import { ChatMessage } from '@/components/molecules/ChatMessage'
 import { ChatInput } from '@/components/molecules/ChatInput'
 import { Button } from '@/components/atoms/Button'
 import { Spinner } from '@/components/atoms/Spinner'
+import { STREAMING_MESSAGE_ID } from '@/domains/chat/chat-stream'
 import type { ChatMessage as ChatMessageType } from '@/domains/chat/types'
 
 const SCROLL_BOTTOM_THRESHOLD_PX = 80
@@ -16,7 +17,6 @@ type ChatWindowProps = {
   error?: string | null
   canRetry?: boolean
   onRetry?: () => void
-  onStreamingTypingComplete?: () => void
 }
 
 export function ChatWindow({
@@ -28,7 +28,6 @@ export function ChatWindow({
   error,
   canRetry = false,
   onRetry,
-  onStreamingTypingComplete,
 }: ChatWindowProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isPinnedToBottomRef = useRef(true)
@@ -75,7 +74,7 @@ export function ChatWindow({
     }
   }, [isLoading, messages, scrollToBottom])
 
-  const handleStreamingProgress = useCallback(() => {
+  const handleTypingProgress = useCallback(() => {
     if (isPinnedToBottomRef.current) {
       scrollToBottom('auto')
     }
@@ -100,20 +99,14 @@ export function ChatWindow({
             </p>
           </div>
         ) : (
-          <div className="mx-auto w-full max-w-3xl">
+          <div className="mx-auto w-full max-w-3xl pb-4">
             {messages.map((message) => (
               <ChatMessage
-                key={message.id}
+                key={message.streaming ? STREAMING_MESSAGE_ID : message.id}
                 sender={message.sender}
                 content={message.content}
                 streaming={message.streaming}
-                finalizeOnComplete={message.finalizeOnComplete}
-                onTypingComplete={
-                  message.streaming && message.finalizeOnComplete
-                    ? onStreamingTypingComplete
-                    : undefined
-                }
-                onTypingProgress={message.streaming ? handleStreamingProgress : undefined}
+                onTypingProgress={message.streaming ? handleTypingProgress : undefined}
               />
             ))}
           </div>

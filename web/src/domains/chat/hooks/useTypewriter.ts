@@ -8,7 +8,7 @@ type UseTypewriterOptions = {
 
 export function useTypewriter(
   text: string,
-  { enabled = false, intervalMs = 18, onComplete }: UseTypewriterOptions = {},
+  { enabled = false, intervalMs = 12, onComplete }: UseTypewriterOptions = {},
 ) {
   const [displayed, setDisplayed] = useState(enabled ? '' : text)
   const indexRef = useRef(enabled ? 0 : text.length)
@@ -49,7 +49,8 @@ export function useTypewriter(
       }
 
       const backlog = text.length - indexRef.current
-      const chars = backlog > 48 ? 6 : backlog > 24 ? 4 : backlog > 8 ? 2 : 1
+      const chars =
+        backlog > 200 ? 32 : backlog > 100 ? 16 : backlog > 48 ? 8 : backlog > 16 ? 4 : backlog > 4 ? 2 : 1
 
       indexRef.current = Math.min(indexRef.current + chars, text.length)
       setDisplayed(text.slice(0, indexRef.current))
