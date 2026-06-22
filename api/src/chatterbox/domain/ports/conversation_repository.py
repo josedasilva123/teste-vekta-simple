@@ -1,6 +1,7 @@
 from typing import Protocol
 
 from chatterbox.domain.entities.conversation import Conversation
+from chatterbox.domain.entities.conversation_summary import ConversationSummary
 from chatterbox.domain.entities.message import Message
 
 
@@ -10,3 +11,5 @@ class ConversationRepository(Protocol):
     async def get_by_id(self, conversation_id: str) -> Conversation | None: ...
 
     async def add_message(self, message: Message) -> Message: ...
+
+    async def list(self, limit: int = 50) -> list[ConversationSummary]: ...

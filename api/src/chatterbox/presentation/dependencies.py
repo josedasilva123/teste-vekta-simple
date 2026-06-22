@@ -4,6 +4,7 @@ from fastapi import Depends
 from starlette.requests import HTTPConnection
 
 from chatterbox.application.use_cases.get_conversation import GetConversationUseCase
+from chatterbox.application.use_cases.list_conversations import ListConversationsUseCase
 from chatterbox.application.use_cases.send_message import SendMessageUseCase
 from chatterbox.application.use_cases.send_message_stream import SendMessageStreamUseCase
 from chatterbox.application.use_cases.start_conversation import StartConversationUseCase
@@ -38,6 +39,12 @@ def get_ai_service(
     if app_settings.ai_provider.lower() == "fake":
         return FakeAIService()
     return GeminiService(app_settings)
+
+
+def get_list_conversations_use_case(
+    repository: Annotated[ConversationRepository, Depends(get_conversation_repository)],
+) -> ListConversationsUseCase:
+    return ListConversationsUseCase(repository)
 
 
 def get_start_conversation_use_case(

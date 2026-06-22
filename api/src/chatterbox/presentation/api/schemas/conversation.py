@@ -19,6 +19,13 @@ class ConversationSchema(BaseModel):
     created_at: datetime
 
 
+class ConversationSummarySchema(BaseModel):
+    id: str
+    created_at: datetime
+    preview: str | None
+    message_count: int
+
+
 class CreateMessageRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=4000)
 

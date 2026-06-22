@@ -1,7 +1,9 @@
 from chatterbox.domain.entities.conversation import Conversation
+from chatterbox.domain.entities.conversation_summary import ConversationSummary
 from chatterbox.domain.entities.message import Message
 from chatterbox.presentation.api.schemas.conversation import (
     ConversationSchema,
+    ConversationSummarySchema,
     MessageSchema,
     SendMessageResponse,
 )
@@ -22,6 +24,15 @@ def to_conversation_schema(conversation: Conversation) -> ConversationSchema:
         id=conversation.id,
         messages=[to_message_schema(message) for message in conversation.messages],
         created_at=conversation.created_at,
+    )
+
+
+def to_conversation_summary_schema(summary: ConversationSummary) -> ConversationSummarySchema:
+    return ConversationSummarySchema(
+        id=summary.id,
+        created_at=summary.created_at,
+        preview=summary.preview,
+        message_count=summary.message_count,
     )
 
 

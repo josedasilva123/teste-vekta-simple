@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from chatterbox.domain.entities.conversation import Conversation
+from chatterbox.domain.entities.conversation_summary import ConversationSummary
 from chatterbox.domain.entities.message import Message
 from chatterbox.domain.enums.sender_role import SenderRole
 from chatterbox.infrastructure.persistence.mongo_database import MongoDatabase
@@ -42,6 +43,66 @@ class MongoConversationRepository:
             messages=messages,
             created_at=doc["created_at"],
         )
+
+    async def list(self, limit: int = 50) -> list[ConversationSummary]:
+        pipeline = [
+            {"$sort": {"created_at": -1}},
+            {"$limit": limit},
+            {
+                "$lookup": {
+                    "from": self.MESSAGES,
+                    "let": {"conv_id": "$_id"},
+                    "pipeline": [
+                        {"$match": {"$expr": {"$eq": ["$conversation_id", "$$conv_id"]}}},
+                        {"$sort": {"created_at": -1}},
+                        {"$limit": 1},
+                    ],
+                    "as": "last_message",
+                }
+            },
+            {
+                "$lookup": {
+                    "from": self.MESSAGES,
+                    "let": {"conv_id": "$_id"},
+                    "pipeline": [
+                        {"$match": {"$expr": {"$eq": ["$conversation_id", "$$conv_id"]}}},
+                        {"$count": "total"},
+                    ],
+                    "as": "message_count_result",
+                }
+            },
+            {
+                "$project": {
+                    "created_at": 1,
+                    "last_message": {"$arrayElemAt": ["$last_message", 0]},
+                    "message_count": {
+                        "$ifNull": [
+                            {"$arrayElemAt": ["$message_count_result.total", 0]},
+                            0,
+                        ]
+                    },
+                }
+            },
+        ]
+
+        summaries: list[ConversationSummary] = []
+        async for doc in self._database.database[self.CONVERSATIONS].aggregate(pipeline):
+            last_msg = doc.get("last_message")
+            preview: str | None = None
+            if last_msg:
+                raw_content: str = last_msg.get("content", "")
+                preview = raw_content[:100] if raw_content else None
+
+            summaries.append(
+                ConversationSummary(
+                    id=doc["_id"],
+                    created_at=_ensure_utc(doc["created_at"]),
+                    preview=preview,
+                    message_count=doc["message_count"],
+                )
+            )
+
+        return summaries
 
     async def add_message(self, message: Message) -> Message:
         await self._database.database[self.MESSAGES].insert_one(

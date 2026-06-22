@@ -1,27 +1,40 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from chatterbox.application.use_cases.get_conversation import GetConversationUseCase
+from chatterbox.application.use_cases.list_conversations import ListConversationsUseCase
 from chatterbox.application.use_cases.send_message import SendMessageUseCase
 from chatterbox.application.use_cases.start_conversation import StartConversationUseCase
 from chatterbox.domain.exceptions import ConversationNotFoundError
 from chatterbox.presentation.api.mappers import (
     to_conversation_schema,
+    to_conversation_summary_schema,
     to_send_message_response,
 )
 from chatterbox.presentation.api.schemas.conversation import (
     ConversationSchema,
+    ConversationSummarySchema,
     CreateMessageRequest,
     SendMessageResponse,
 )
 from chatterbox.presentation.dependencies import (
     get_get_conversation_use_case,
+    get_list_conversations_use_case,
     get_send_message_use_case,
     get_start_conversation_use_case,
 )
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
+
+
+@router.get("", response_model=list[ConversationSummarySchema])
+async def list_conversations(
+    use_case: Annotated[ListConversationsUseCase, Depends(get_list_conversations_use_case)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> list[ConversationSummarySchema]:
+    summaries = await use_case.execute(limit=limit)
+    return [to_conversation_summary_schema(s) for s in summaries]
 
 
 @router.post("", response_model=ConversationSchema, status_code=status.HTTP_201_CREATED)
