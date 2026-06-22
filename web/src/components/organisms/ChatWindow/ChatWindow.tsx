@@ -3,6 +3,7 @@ import { ChatMessage } from '@/components/molecules/ChatMessage'
 import { ChatInput } from '@/components/molecules/ChatInput'
 import { Button } from '@/components/atoms/Button'
 import { Spinner } from '@/components/atoms/Spinner'
+import { TypingIndicator } from '@/components/atoms/TypingIndicator'
 import { STREAMING_MESSAGE_ID } from '@/domains/chat/chat-stream'
 import type { ChatMessage as ChatMessageType } from '@/domains/chat/types'
 
@@ -119,6 +120,9 @@ export function ChatWindow({
                 }
               />
             ))}
+            {isSending && !messages.some((m) => m.id === STREAMING_MESSAGE_ID) && (
+              <TypingIndicator />
+            )}
           </div>
         )}
       </div>
