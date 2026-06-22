@@ -19,6 +19,7 @@ Recomendado quando não há espaço ou Docker disponível.
 .\scripts\setup-local.ps1
 
 # 2. Iniciar MongoDB local (em outro terminal — deixe aberto)
+#    Opcional: a API inicia o MongoDB sozinha se MONGODB_AUTO_START=true (padrao)
 .\scripts\start-mongodb.ps1
 
 # 3. Iniciar a API (em outro terminal)

@@ -8,6 +8,7 @@ from chatterbox.infrastructure.config.settings import settings
 from chatterbox.infrastructure.persistence.mongo_conversation_repository import (
     MongoConversationRepository,
 )
+from chatterbox.infrastructure.persistence.mongo_launcher import ensure_local_mongodb_running
 from chatterbox.infrastructure.persistence.mongo_database import MongoDatabase
 from chatterbox.presentation.api.routers.conversations import router as conversations_router
 from chatterbox.presentation.api.routers.conversations_ws import router as conversations_ws_router
@@ -15,6 +16,7 @@ from chatterbox.presentation.api.routers.conversations_ws import router as conve
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await ensure_local_mongodb_running(settings)
     mongo_database = MongoDatabase(settings)
     await mongo_database.connect()
     await MongoConversationRepository(mongo_database).ensure_indexes()

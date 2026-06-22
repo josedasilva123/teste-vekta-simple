@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_database: str = "chatterbox"
+    mongodb_auto_start: bool = True
 
     api_host: str = "0.0.0.0"
     api_port: int = 8000
