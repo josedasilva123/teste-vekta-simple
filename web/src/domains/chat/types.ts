@@ -1,5 +1,12 @@
 export type SenderRole = 'USER' | 'AI'
 
+export type ConversationSummary = {
+  id: string
+  created_at: string
+  preview: string | null
+  message_count: number
+}
+
 export type Message = {
   id: string
   conversation_id: string

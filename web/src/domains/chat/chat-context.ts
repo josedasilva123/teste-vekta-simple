@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { ChatMessage } from '@/domains/chat/types'
+import type { ChatMessage, ConversationSummary } from '@/domains/chat/types'
 
 export type ChatContextValue = {
   isLoading: boolean
@@ -12,6 +12,14 @@ export type ChatContextValue = {
   sendMessage: (content: string) => boolean
   retryLastMessage: () => boolean
   finishTypingAnimation: () => void
+  activeConversationId: string | null
+  conversations: ConversationSummary[]
+  isLoadingConversations: boolean
+  isSidebarOpen: boolean
+  toggleSidebar: () => void
+  closeSidebar: () => void
+  startNewConversation: () => Promise<void>
+  switchToConversation: (id: string) => Promise<void>
 }
 
 export const ChatContext = createContext<ChatContextValue | null>(null)
