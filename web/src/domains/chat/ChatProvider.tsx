@@ -19,7 +19,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [initialMessages, setInitialMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false)
   const [pageError, setPageError] = useState<string | null>(null)
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null)
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [isLoadingConversations, setIsLoadingConversations] = useState(false)
@@ -40,41 +42,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Bootstrap: load stored conversation or create new one
+  // Bootstrap: load stored conversation only — do NOT create a new one
   useEffect(() => {
     let cancelled = false
 
     const bootstrap = async () => {
-      try {
-        const storedId = getStoredConversationId()
+      const storedId = getStoredConversationId()
 
-        if (storedId) {
-          try {
-            const conversation = await getConversation(storedId)
-            if (cancelled) return
-            storeConversationId(conversation.id)
-            setActiveConversationId(conversation.id)
-            setInitialMessages(mapMessages(conversation.messages))
-            return
-          } catch {
-            clearStoredConversationId()
-          }
-        }
-
-        const conversation = await createConversation()
-        if (cancelled) return
-        storeConversationId(conversation.id)
-        setActiveConversationId(conversation.id)
-        setInitialMessages([])
-      } catch {
-        if (!cancelled) {
-          setPageError('Não foi possível iniciar a conversa')
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false)
+      if (storedId) {
+        try {
+          const conversation = await getConversation(storedId)
+          if (cancelled) return
+          storeConversationId(conversation.id)
+          setActiveConversationId(conversation.id)
+          setInitialMessages(mapMessages(conversation.messages))
+        } catch {
+          if (!cancelled) clearStoredConversationId()
         }
       }
+
+      if (!cancelled) setIsLoading(false)
     }
 
     void bootstrap()
@@ -85,45 +72,92 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshConversations])
 
-  const startNewConversation = useCallback(async () => {
-    if (isSwitchingRef.current) return
-    isSwitchingRef.current = true
-    setIsLoading(true)
-    setIsSidebarOpen(false)
-    try {
-      const conversation = await createConversation()
-      storeConversationId(conversation.id)
-      setActiveConversationId(conversation.id)
-      setInitialMessages([])
-      void refreshConversations()
-    } catch {
-      setPageError('Não foi possível criar uma nova conversa')
-    } finally {
-      setIsLoading(false)
-      isSwitchingRef.current = false
-    }
-  }, [refreshConversations])
+  const {
+    messages,
+    isConnected,
+    isSending,
+    error: chatError,
+    canRetry,
+    sendMessage: wsSendMessage,
+    retryLastMessage,
+    finishTypingAnimation,
+  } = useChatWebSocket({
+    conversationId: activeConversationId,
+    initialMessages,
+    enabled: !isLoading && Boolean(activeConversationId),
+  })
 
-  const switchToConversation = useCallback(async (id: string) => {
-    if (isSwitchingRef.current || id === activeConversationId) {
-      setIsSidebarOpen(false)
-      return
+  // When WS connects and there's a queued first message, send it
+  useEffect(() => {
+    if (isConnected && pendingMessage) {
+      wsSendMessage(pendingMessage)
+      setPendingMessage(null)
     }
-    isSwitchingRef.current = true
-    setIsLoading(true)
+  }, [isConnected, pendingMessage, wsSendMessage])
+
+  // If no active conversation, create one on the first message
+  const sendMessage = useCallback(
+    (content: string): boolean => {
+      const trimmed = content.trim()
+      if (!trimmed) return false
+
+      if (!activeConversationId) {
+        setIsCreatingConversation(true)
+        void createConversation()
+          .then((conv) => {
+            storeConversationId(conv.id)
+            setActiveConversationId(conv.id)
+            setInitialMessages([])
+            setPendingMessage(trimmed)
+            void refreshConversations()
+          })
+          .catch(() => {
+            setPageError('Não foi possível criar a conversa')
+          })
+          .finally(() => {
+            setIsCreatingConversation(false)
+          })
+        return true
+      }
+
+      return wsSendMessage(content)
+    },
+    [activeConversationId, wsSendMessage, refreshConversations],
+  )
+
+  // Start a new conversation: just clear state, conversation is created on first message
+  const startNewConversation = useCallback(() => {
+    if (isSwitchingRef.current) return
+    clearStoredConversationId()
+    setActiveConversationId(null)
+    setInitialMessages([])
+    setPendingMessage(null)
     setIsSidebarOpen(false)
-    try {
-      const conversation = await getConversation(id)
-      storeConversationId(conversation.id)
-      setActiveConversationId(conversation.id)
-      setInitialMessages(mapMessages(conversation.messages))
-    } catch {
-      setPageError('Não foi possível carregar a conversa')
-    } finally {
-      setIsLoading(false)
-      isSwitchingRef.current = false
-    }
-  }, [activeConversationId])
+  }, [])
+
+  const switchToConversation = useCallback(
+    async (id: string) => {
+      if (isSwitchingRef.current || id === activeConversationId) {
+        setIsSidebarOpen(false)
+        return
+      }
+      isSwitchingRef.current = true
+      setIsLoading(true)
+      setIsSidebarOpen(false)
+      try {
+        const conversation = await getConversation(id)
+        storeConversationId(conversation.id)
+        setActiveConversationId(conversation.id)
+        setInitialMessages(mapMessages(conversation.messages))
+      } catch {
+        setPageError('Não foi possível carregar a conversa')
+      } finally {
+        setIsLoading(false)
+        isSwitchingRef.current = false
+      }
+    },
+    [activeConversationId],
+  )
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen((prev) => !prev)
@@ -133,27 +167,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setIsSidebarOpen(false)
   }, [])
 
-  const {
-    messages,
-    isConnected,
-    isSending,
-    error: chatError,
-    canRetry,
-    sendMessage,
-    retryLastMessage,
-    finishTypingAnimation,
-  } = useChatWebSocket({
-    conversationId: activeConversationId,
-    initialMessages,
-    enabled: !isLoading && Boolean(activeConversationId),
-  })
-
   const value = useMemo(
     () => ({
       isLoading,
+      isCreatingConversation,
       pageError,
       messages,
-      isConnected,
+      isConnected: Boolean(activeConversationId) && isConnected,
       isSending,
       chatError,
       canRetry,
@@ -171,8 +191,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }),
     [
       isLoading,
+      isCreatingConversation,
       pageError,
       messages,
+      activeConversationId,
       isConnected,
       isSending,
       chatError,
@@ -180,7 +202,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       sendMessage,
       retryLastMessage,
       finishTypingAnimation,
-      activeConversationId,
       conversations,
       isLoadingConversations,
       isSidebarOpen,

@@ -3,6 +3,7 @@ import type { ChatMessage, ConversationSummary } from '@/domains/chat/types'
 
 export type ChatContextValue = {
   isLoading: boolean
+  isCreatingConversation: boolean
   pageError: string | null
   messages: ChatMessage[]
   isConnected: boolean
@@ -18,7 +19,7 @@ export type ChatContextValue = {
   isSidebarOpen: boolean
   toggleSidebar: () => void
   closeSidebar: () => void
-  startNewConversation: () => Promise<void>
+  startNewConversation: () => void
   switchToConversation: (id: string) => Promise<void>
 }
 

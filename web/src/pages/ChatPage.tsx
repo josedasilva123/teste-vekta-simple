@@ -6,15 +6,22 @@ export function ChatPage() {
   const {
     pageError,
     isLoading,
+    isCreatingConversation,
     messages,
     chatError,
     canRetry,
     isConnected,
     isSending,
+    activeConversationId,
     sendMessage,
     retryLastMessage,
     finishTypingAnimation,
   } = useChat()
+
+  const inputDisabled =
+    isSending || isCreatingConversation || isLoading || (!!activeConversationId && !isConnected)
+
+  const showReconnecting = !!activeConversationId && !isConnected && !isLoading
 
   return (
     <ChatLayout>
@@ -26,13 +33,15 @@ export function ChatPage() {
       <ChatWindow
         messages={messages}
         onSend={sendMessage}
-        isSending={isSending}
+        isSending={isSending || isCreatingConversation}
         isConnected={isConnected}
         isLoading={isLoading}
+        showReconnecting={showReconnecting}
         error={chatError}
         canRetry={canRetry}
         onRetry={retryLastMessage}
         onTypingComplete={finishTypingAnimation}
+        inputDisabled={inputDisabled}
       />
     </ChatLayout>
   )

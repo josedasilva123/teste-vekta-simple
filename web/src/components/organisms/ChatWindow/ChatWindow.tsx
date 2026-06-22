@@ -14,6 +14,8 @@ type ChatWindowProps = {
   isSending: boolean
   isConnected: boolean
   isLoading: boolean
+  showReconnecting?: boolean
+  inputDisabled?: boolean
   error?: string | null
   canRetry?: boolean
   onRetry?: () => void
@@ -26,6 +28,8 @@ export function ChatWindow({
   isSending,
   isConnected,
   isLoading,
+  showReconnecting = false,
+  inputDisabled,
   error,
   canRetry = false,
   onRetry,
@@ -136,10 +140,10 @@ export function ChatWindow({
             ) : null}
           </div>
         ) : null}
-        {!isConnected && !isLoading ? (
+        {showReconnecting ? (
           <p className="mb-2 text-center text-sm text-amber-400">Reconectando ao chat...</p>
         ) : null}
-        <ChatInput onSend={onSend} disabled={isSending || !isConnected || isLoading} />
+        <ChatInput onSend={onSend} disabled={inputDisabled ?? (isSending || !isConnected || isLoading)} />
       </div>
     </div>
   )
