@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /** Intervalo entre cada caractere exibido (~46 chars/s). */
-export const TYPEWRITER_CHAR_INTERVAL_MS = 22
+export const TYPEWRITER_CHAR_INTERVAL_MS = 11
 
 type UseTypewriterOptions = {
   enabled?: boolean
@@ -20,7 +20,7 @@ export function useTypewriter(
   const [revealedLength, setRevealedLength] = useState(enabled ? 0 : text.length)
   const textRef = useRef(text)
   const revealedRef = useRef(revealedLength)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const completedLengthRef = useRef(enabled ? 0 : text.length)
   const previousTextRef = useRef(text)
 
