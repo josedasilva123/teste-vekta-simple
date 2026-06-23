@@ -59,14 +59,13 @@ export function useChatWebSocket({
   const [isConnected, setIsConnected] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [retryContent, setRetryContent] = useState<string | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
+  // Última mensagem enviada/tentada; serve de base para o retry quando há erro.
   const lastSentContentRef = useRef<string | null>(null)
 
   const resetLiveState = useCallback(() => {
     setIsSending(false)
     setError(null)
-    setRetryContent(null)
     lastSentContentRef.current = null
   }, [])
 
@@ -134,9 +133,6 @@ export function useChatWebSocket({
       ws.onerror = () => {
         if (disposed) return
         setError('Falha na conexão com o chat')
-        if (lastSentContentRef.current) {
-          setRetryContent(lastSentContentRef.current)
-        }
       }
 
       ws.onmessage = (event) => {
@@ -164,13 +160,11 @@ export function useChatWebSocket({
         if (data.type === 'done') {
           setMessages((current) => finalizeStreamedMessage(current, data.ai_message))
           setIsSending(false)
-          setRetryContent(null)
           return
         }
 
         if (data.type === 'error') {
           setError(data.detail ?? 'Erro ao processar mensagem')
-          setRetryContent(lastSentContentRef.current)
           setMessages((current) => removeStreamingMessage(current))
           setIsSending(false)
         }
@@ -209,12 +203,10 @@ export function useChatWebSocket({
 
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       setError('Aguardando conexão com o chat. Tente novamente em instantes.')
-      setRetryContent(trimmed)
       return false
     }
 
     setError(null)
-    setRetryContent(null)
     setMessages((current) => removeStreamingMessage(current))
     setIsSending(true)
 
@@ -224,20 +216,20 @@ export function useChatWebSocket({
   }, [])
 
   const retryLastMessage = useCallback(() => {
-    const content = retryContent ?? lastSentContentRef.current
+    const content = lastSentContentRef.current
     if (!content) {
       return false
     }
 
     return sendMessage(content)
-  }, [retryContent, sendMessage])
+  }, [sendMessage])
 
   return {
     messages,
     isConnected: canConnect && isConnected,
     isSending,
     error,
-    canRetry: Boolean(retryContent),
+    canRetry: Boolean(error) && Boolean(lastSentContentRef.current),
     sendMessage,
     retryLastMessage,
     finishTypingAnimation,

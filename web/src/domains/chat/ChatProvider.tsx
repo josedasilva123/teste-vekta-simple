@@ -3,11 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   createConversation,
   getConversation,
-  listConversations,
 } from '@/domains/chat/chat-api'
 import { ChatContext } from '@/domains/chat/chat-context'
 import { useChatWebSocket } from '@/domains/chat/hooks/useChatWebSocket'
-import type { ChatMessage, ConversationSummary } from '@/domains/chat/types'
+import { useConversationList } from '@/domains/chat/hooks/useConversationList'
+import { useSidebar } from '@/domains/chat/hooks/useSidebar'
+import type { ChatMessage, Conversation } from '@/domains/chat/types'
 import { mapMessages } from '@/domains/chat/utils'
 import {
   clearStoredConversationId,
@@ -23,23 +24,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [pageError, setPageError] = useState<string | null>(null)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
 
-  const [conversations, setConversations] = useState<ConversationSummary[]>([])
-  const [isLoadingConversations, setIsLoadingConversations] = useState(false)
-
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const { conversations, isLoadingConversations, refreshConversations } = useConversationList()
+  const { isSidebarOpen, toggleSidebar, closeSidebar } = useSidebar()
 
   const isSwitchingRef = useRef(false)
 
-  const refreshConversations = useCallback(async () => {
-    setIsLoadingConversations(true)
-    try {
-      const list = await listConversations()
-      setConversations(list)
-    } catch {
-      // silently ignore list errors
-    } finally {
-      setIsLoadingConversations(false)
-    }
+  const applyConversation = useCallback((conversation: Conversation) => {
+    storeConversationId(conversation.id)
+    setActiveConversationId(conversation.id)
+    setInitialMessages(mapMessages(conversation.messages))
   }, [])
 
   // Bootstrap: load stored conversation only — do NOT create a new one
@@ -52,10 +45,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (storedId) {
         try {
           const conversation = await getConversation(storedId)
-          if (cancelled) return
-          storeConversationId(conversation.id)
-          setActiveConversationId(conversation.id)
-          setInitialMessages(mapMessages(conversation.messages))
+          if (!cancelled) applyConversation(conversation)
         } catch {
           if (!cancelled) clearStoredConversationId()
         }
@@ -65,12 +55,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     void bootstrap()
-    void refreshConversations()
 
     return () => {
       cancelled = true
     }
-  }, [refreshConversations])
+  }, [applyConversation])
 
   const {
     messages,
@@ -95,32 +84,32 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [isConnected, pendingMessage, wsSendMessage])
 
-  // If no active conversation, create one on the first message
+  // If no active conversation, create one and queue the first message for when WS connects
   const sendMessage = useCallback(
     (content: string): boolean => {
       const trimmed = content.trim()
       if (!trimmed) return false
 
-      if (!activeConversationId) {
-        setIsCreatingConversation(true)
-        void createConversation()
-          .then((conv) => {
-            storeConversationId(conv.id)
-            setActiveConversationId(conv.id)
-            setInitialMessages([])
-            setPendingMessage(trimmed)
-            void refreshConversations()
-          })
-          .catch(() => {
-            setPageError('Não foi possível criar a conversa')
-          })
-          .finally(() => {
-            setIsCreatingConversation(false)
-          })
-        return true
+      if (activeConversationId) {
+        return wsSendMessage(content)
       }
 
-      return wsSendMessage(content)
+      setIsCreatingConversation(true)
+      void createConversation()
+        .then((conv) => {
+          storeConversationId(conv.id)
+          setActiveConversationId(conv.id)
+          setInitialMessages([])
+          setPendingMessage(trimmed)
+          void refreshConversations()
+        })
+        .catch(() => {
+          setPageError('Não foi possível criar a conversa')
+        })
+        .finally(() => {
+          setIsCreatingConversation(false)
+        })
+      return true
     },
     [activeConversationId, wsSendMessage, refreshConversations],
   )
@@ -132,23 +121,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setActiveConversationId(null)
     setInitialMessages([])
     setPendingMessage(null)
-    setIsSidebarOpen(false)
-  }, [])
+    closeSidebar()
+  }, [closeSidebar])
 
   const switchToConversation = useCallback(
     async (id: string) => {
+      closeSidebar()
       if (isSwitchingRef.current || id === activeConversationId) {
-        setIsSidebarOpen(false)
         return
       }
       isSwitchingRef.current = true
       setIsLoading(true)
-      setIsSidebarOpen(false)
       try {
         const conversation = await getConversation(id)
-        storeConversationId(conversation.id)
-        setActiveConversationId(conversation.id)
-        setInitialMessages(mapMessages(conversation.messages))
+        applyConversation(conversation)
       } catch {
         setPageError('Não foi possível carregar a conversa')
       } finally {
@@ -156,16 +142,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         isSwitchingRef.current = false
       }
     },
-    [activeConversationId],
+    [activeConversationId, applyConversation, closeSidebar],
   )
-
-  const toggleSidebar = useCallback(() => {
-    setIsSidebarOpen((prev) => !prev)
-  }, [])
-
-  const closeSidebar = useCallback(() => {
-    setIsSidebarOpen(false)
-  }, [])
 
   const value = useMemo(
     () => ({
@@ -173,7 +151,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isCreatingConversation,
       pageError,
       messages,
-      isConnected: Boolean(activeConversationId) && isConnected,
+      isConnected,
       isSending,
       chatError,
       canRetry,
