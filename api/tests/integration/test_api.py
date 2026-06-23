@@ -84,6 +84,26 @@ def test_websocket_invalid_payload_returns_error(ws_client: TestClient) -> None:
     assert event["type"] == "error"
 
 
+@pytest.mark.asyncio
+async def test_list_conversations_returns_summaries(client: AsyncClient) -> None:
+    await client.post("/api/v1/conversations")
+    conv2 = await client.post("/api/v1/conversations")
+    conv2_id = conv2.json()["id"]
+    await client.post(
+        f"/api/v1/conversations/{conv2_id}/messages",
+        json={"content": "Olá, Terra plana!"},
+    )
+
+    response = await client.get("/api/v1/conversations")
+
+    assert response.status_code == 200
+    summaries = response.json()
+    assert len(summaries) == 2
+    latest = next(s for s in summaries if s["id"] == conv2_id)
+    assert latest["message_count"] == 2
+    assert latest["preview"] is not None
+
+
 def test_websocket_ai_failure_keeps_connection_open(
     ws_client: TestClient, ws_test_app, monkeypatch
 ) -> None:

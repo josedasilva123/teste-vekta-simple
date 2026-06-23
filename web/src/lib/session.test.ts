@@ -7,7 +7,7 @@ import {
 
 describe('session', () => {
   beforeEach(() => {
-    sessionStorage.clear()
+    localStorage.clear()
   })
 
   it('persiste e recupera o id da conversa', () => {

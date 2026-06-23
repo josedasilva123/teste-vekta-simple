@@ -67,7 +67,7 @@ describe('ChatWindow', () => {
     expect(onSend).toHaveBeenCalledWith('Nova mensagem')
   })
 
-  it('exibe erro e aviso de reconexão', () => {
+  it('exibe erro e aviso de reconexão quando showReconnecting é true', () => {
     render(
       <ChatWindow
         messages={[]}
@@ -75,11 +75,26 @@ describe('ChatWindow', () => {
         isSending={false}
         isConnected={false}
         isLoading={false}
+        showReconnecting
         error="Falha ao enviar"
       />,
     )
 
     expect(screen.getByText('Falha ao enviar')).toBeInTheDocument()
     expect(screen.getByText('Reconectando ao chat...')).toBeInTheDocument()
+  })
+
+  it('não exibe aviso de reconexão na primeira conexão (sem mensagens)', () => {
+    render(
+      <ChatWindow
+        messages={[]}
+        onSend={vi.fn()}
+        isSending={false}
+        isConnected={false}
+        isLoading={false}
+      />,
+    )
+
+    expect(screen.queryByText('Reconectando ao chat...')).not.toBeInTheDocument()
   })
 })

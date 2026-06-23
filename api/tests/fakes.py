@@ -1,4 +1,5 @@
 from chatterbox.domain.entities.conversation import Conversation
+from chatterbox.domain.entities.conversation_summary import ConversationSummary
 from chatterbox.domain.entities.message import Message
 
 
@@ -26,3 +27,21 @@ class FakeConversationRepository:
     async def add_message(self, message: Message) -> Message:
         self._messages.setdefault(message.conversation_id, []).append(message)
         return message
+
+    async def list(self, limit: int = 50) -> list[ConversationSummary]:
+        conversations = sorted(
+            self._conversations.values(), key=lambda c: c.created_at, reverse=True
+        )
+        result = []
+        for conv in conversations[:limit]:
+            messages = self._messages.get(conv.id, [])
+            last = messages[-1] if messages else None
+            result.append(
+                ConversationSummary(
+                    id=conv.id,
+                    created_at=conv.created_at,
+                    preview=last.content[:100] if last else None,
+                    message_count=len(messages),
+                )
+            )
+        return result

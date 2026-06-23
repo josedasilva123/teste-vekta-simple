@@ -1,6 +1,7 @@
 import pytest
 
 from chatterbox.application.use_cases.get_conversation import GetConversationUseCase
+from chatterbox.application.use_cases.list_conversations import ListConversationsUseCase
 from chatterbox.application.use_cases.send_message import SendMessageUseCase
 from chatterbox.application.use_cases.send_message_stream import (
     SendMessageStreamUseCase,
@@ -110,3 +111,29 @@ async def test_get_conversation_raises_when_not_found(
 
     with pytest.raises(ConversationNotFoundError):
         await use_case.execute("inexistente")
+
+
+@pytest.mark.asyncio
+async def test_list_conversations_returns_summaries_ordered_by_date(
+    fake_repository: FakeConversationRepository,
+) -> None:
+    conv1 = await StartConversationUseCase(fake_repository).execute()
+    conv2 = await StartConversationUseCase(fake_repository).execute()
+    await SendMessageUseCase(fake_repository, FakeAIService()).execute(conv1.id, "Olá")
+
+    summaries = await ListConversationsUseCase(fake_repository).execute()
+
+    assert len(summaries) == 2
+    assert summaries[0].id == conv2.id
+    assert summaries[1].id == conv1.id
+    assert summaries[1].message_count == 2
+    assert summaries[1].preview is not None
+
+
+@pytest.mark.asyncio
+async def test_list_conversations_empty_when_no_conversations(
+    fake_repository: FakeConversationRepository,
+) -> None:
+    summaries = await ListConversationsUseCase(fake_repository).execute()
+
+    assert summaries == []

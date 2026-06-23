@@ -10,6 +10,28 @@ import { useChat } from '@/domains/chat/chat-context'
 
 const mockUseChat = vi.mocked(useChat)
 
+const baseContext = {
+  isLoading: false,
+  isCreatingConversation: false,
+  pageError: null,
+  messages: [],
+  isConnected: true,
+  isSending: false,
+  chatError: null,
+  canRetry: false,
+  activeConversationId: 'conv-1',
+  conversations: [],
+  isLoadingConversations: false,
+  isSidebarOpen: false,
+  sendMessage: vi.fn(),
+  retryLastMessage: vi.fn(),
+  finishTypingAnimation: vi.fn(),
+  toggleSidebar: vi.fn(),
+  closeSidebar: vi.fn(),
+  startNewConversation: vi.fn(),
+  switchToConversation: vi.fn(),
+}
+
 describe('ChatPage', () => {
   beforeEach(() => {
     Element.prototype.scrollIntoView = vi.fn()
@@ -17,16 +39,8 @@ describe('ChatPage', () => {
 
   it('exibe erro da página quando presente', () => {
     mockUseChat.mockReturnValue({
-      isLoading: false,
+      ...baseContext,
       pageError: 'Erro ao carregar conversa',
-      messages: [],
-      isConnected: true,
-      isSending: false,
-      chatError: null,
-      canRetry: false,
-      sendMessage: vi.fn(),
-      retryLastMessage: vi.fn(),
-      finishTypingAnimation: vi.fn(),
     })
 
     render(<ChatPage />)
@@ -35,25 +49,33 @@ describe('ChatPage', () => {
 
   it('renderiza janela de chat com mensagens', () => {
     mockUseChat.mockReturnValue({
-      isLoading: false,
-      pageError: null,
-      messages: [
-        {
-          id: '1',
-          sender: 'USER',
-          content: 'Mensagem de teste',
-        },
-      ],
-      isConnected: true,
-      isSending: false,
-      chatError: null,
-      canRetry: false,
-      sendMessage: vi.fn(),
-      retryLastMessage: vi.fn(),
-      finishTypingAnimation: vi.fn(),
+      ...baseContext,
+      messages: [{ id: '1', sender: 'USER', content: 'Mensagem de teste' }],
     })
 
     render(<ChatPage />)
     expect(screen.getByText('Mensagem de teste')).toBeInTheDocument()
+  })
+
+  it('não exibe aviso de reconexão sem mensagens prévias', () => {
+    mockUseChat.mockReturnValue({
+      ...baseContext,
+      isConnected: false,
+      messages: [],
+    })
+
+    render(<ChatPage />)
+    expect(screen.queryByText('Reconectando ao chat...')).not.toBeInTheDocument()
+  })
+
+  it('exibe aviso de reconexão quando havia mensagens e conexão caiu', () => {
+    mockUseChat.mockReturnValue({
+      ...baseContext,
+      isConnected: false,
+      messages: [{ id: '1', sender: 'USER', content: 'Olá' }],
+    })
+
+    render(<ChatPage />)
+    expect(screen.getByText('Reconectando ao chat...')).toBeInTheDocument()
   })
 })

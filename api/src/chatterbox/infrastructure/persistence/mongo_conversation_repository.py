@@ -51,43 +51,17 @@ class MongoConversationRepository:
             {
                 "$lookup": {
                     "from": self.MESSAGES,
-                    "let": {"conv_id": "$_id"},
-                    "pipeline": [
-                        {"$match": {"$expr": {"$eq": ["$conversation_id", "$$conv_id"]}}},
-                        {"$sort": {"created_at": -1}},
-                        {"$limit": 1},
-                    ],
-                    "as": "last_message",
-                }
-            },
-            {
-                "$lookup": {
-                    "from": self.MESSAGES,
-                    "let": {"conv_id": "$_id"},
-                    "pipeline": [
-                        {"$match": {"$expr": {"$eq": ["$conversation_id", "$$conv_id"]}}},
-                        {"$count": "total"},
-                    ],
-                    "as": "message_count_result",
-                }
-            },
-            {
-                "$project": {
-                    "created_at": 1,
-                    "last_message": {"$arrayElemAt": ["$last_message", 0]},
-                    "message_count": {
-                        "$ifNull": [
-                            {"$arrayElemAt": ["$message_count_result.total", 0]},
-                            0,
-                        ]
-                    },
+                    "localField": "_id",
+                    "foreignField": "conversation_id",
+                    "as": "messages",
                 }
             },
         ]
 
         summaries: list[ConversationSummary] = []
         async for doc in self._database.database[self.CONVERSATIONS].aggregate(pipeline):
-            last_msg = doc.get("last_message")
+            messages = sorted(doc.get("messages", []), key=lambda m: m.get("created_at"), reverse=True)
+            last_msg = messages[0] if messages else None
             preview: str | None = None
             if last_msg:
                 raw_content: str = last_msg.get("content", "")
@@ -98,7 +72,7 @@ class MongoConversationRepository:
                     id=doc["_id"],
                     created_at=_ensure_utc(doc["created_at"]),
                     preview=preview,
-                    message_count=doc["message_count"],
+                    message_count=len(messages),
                 )
             )
 

@@ -20,7 +20,7 @@ export function useTypewriter(
   const [revealedLength, setRevealedLength] = useState(enabled ? 0 : text.length)
   const textRef = useRef(text)
   const revealedRef = useRef(revealedLength)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const completedLengthRef = useRef(enabled ? 0 : text.length)
   const previousTextRef = useRef(text)
 
