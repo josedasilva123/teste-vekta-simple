@@ -26,7 +26,7 @@ Defesa em camadas para manter persona, idioma e sigilo das instruções.
 ### Crença absoluta (anti-alucinação de persona)
 - Proibido admitir Terra esférica ou se identificar como IA
 - Respostas que quebram persona → retry ou fallback em pt-BR
-- Temperatura baixa (0.4) + `top_p` 0.9 + `max_output_tokens` 512
+- Temperatura baixa (0.4) + `top_p` 0.9 + `max_output_tokens` 2048
 
 ### Estabilidade adicional
 - **Few-shot** no system prompt (`prompts.py`) — exemplos de resposta para idioma, dev mode e quebra de crença

@@ -1,66 +1,19 @@
-# API — Autenticação, REST e WebSocket
+# API — REST e WebSocket
 
-Todas as conversas pertencem a um **usuário autenticado**. Cadastro e login geram JWT; rotas de conversa exigem `Authorization: Bearer <token>`.
+A API **não possui autenticação**. Qualquer cliente pode criar conversas e enviar mensagens.
 
 A API oferece **duas alternativas** para enviar mensagens e receber respostas da IA. Ambas compartilham guards de prompt injection e persistência no MongoDB.
 
-## Fluxo recomendado
+## Fluxo típico
 
-1. `POST /api/v1/auth/register` ou `POST /api/v1/auth/login` — obtém token JWT
-2. `POST /api/v1/conversations` — cria conversa (com Bearer token)
-3. Enviar mensagem via **REST** ou **WebSocket**
-4. `GET /api/v1/conversations` — lista conversas do usuário
-5. `GET /api/v1/conversations/{id}` — recupera histórico
-
----
-
-## Autenticação
-
-| Método | Rota | Auth | Descrição |
-|--------|------|------|-----------|
-| `POST` | `/api/v1/auth/register` | Não | Cadastro de usuário |
-| `POST` | `/api/v1/auth/login` | Não | Login |
-| `GET` | `/api/v1/auth/me` | Sim | Usuário autenticado |
-
-### Cadastro
-
-```http
-POST /api/v1/auth/register
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "senha12345",
-  "name": "Maria"
-}
-```
-
-```json
-{
-  "access_token": "eyJ...",
-  "token_type": "bearer",
-  "user": {
-    "id": "...",
-    "email": "user@example.com",
-    "name": "Maria",
-    "created_at": "..."
-  }
-}
-```
-
-### Uso do token
-
-Inclua em todas as rotas de conversa:
-
-```http
-Authorization: Bearer eyJ...
-```
+1. `POST /api/v1/conversations` — cria uma conversa (retorna `id`)
+2. Enviar mensagem via **REST** ou **WebSocket**
+3. `GET /api/v1/conversations` — lista todas as conversas
+4. `GET /api/v1/conversations/{id}` — recupera histórico completo
 
 ---
 
 ## REST vs WebSocket (mensagens)
-
-## Quando usar cada uma
 
 | | **REST** | **WebSocket** |
 |---|----------|---------------|
@@ -68,51 +21,138 @@ Authorization: Bearer eyJ...
 | **Transporte** | HTTP request/response | Conexão persistente bidirecional |
 | **Resposta da IA** | Completa de uma vez | Token a token (chunks) em tempo real |
 | **Complexidade no front** | Baixa (`fetch`) | Média (`WebSocket`) |
-| **Requisito do case** | Mínimo (a–d) | Opcional (e) |
 
-> **Recomendação:** autentique-se via REST; use WebSocket no React para streaming da IA.
-
----
-
-## Quando usar REST ou WebSocket
-
-| | **REST** | **WebSocket** |
-|---|----------|---------------|
-| **Uso ideal** | Integrações simples, testes, clientes HTTP | Frontend com chat ao vivo (streaming) |
-| **Transporte** | HTTP request/response | Conexão persistente bidirecional |
-| **Resposta da IA** | Completa de uma vez | Token a token (chunks) em tempo real |
-| **Auth** | Header `Authorization: Bearer` | Query `?token=` na conexão |
+> **Recomendação:** use REST para testes rápidos; use WebSocket no frontend para streaming da IA.
 
 ---
 
-## REST — Conversas
+## REST — Endpoints
 
-### Endpoints
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/health` | Health check |
+| `GET` | `/api/v1/conversations` | Lista todas as conversas |
+| `POST` | `/api/v1/conversations` | Cria uma conversa |
+| `GET` | `/api/v1/conversations/{id}` | Obtém conversa com histórico completo |
+| `POST` | `/api/v1/conversations/{id}/messages` | Envia mensagem (resposta completa) |
 
-| Método | Rota | Auth | Descrição |
-|--------|------|------|-----------|
-| `GET` | `/health` | Não | Health check |
-| `GET` | `/api/v1/conversations` | Sim | Lista conversas do usuário |
-| `POST` | `/api/v1/conversations` | Sim | Inicia conversa |
-| `GET` | `/api/v1/conversations/{id}` | Sim | Obtém conversa e mensagens |
-| `POST` | `/api/v1/conversations/{id}/messages` | Sim | Envia mensagem (resposta completa) |
+### Health check
 
-### Exemplo
+```http
+GET /health
+```
+
+```json
+{"status": "ok"}
+```
+
+### Listar conversas
+
+```http
+GET /api/v1/conversations?limit=50
+```
+
+| Query param | Tipo | Padrão | Descrição |
+|-------------|------|--------|-----------|
+| `limit` | `int` (1–100) | `50` | Máximo de conversas retornadas |
+
+Retorna lista ordenada por `created_at` decrescente:
+
+```json
+[
+  {
+    "id": "...",
+    "created_at": "2024-01-01T00:00:00Z",
+    "preview": "Últimas palavras da última mensagem...",
+    "message_count": 4
+  }
+]
+```
+
+### Criar conversa
+
+```http
+POST /api/v1/conversations
+```
+
+Resposta `201 Created`:
+
+```json
+{
+  "id": "...",
+  "messages": [],
+  "created_at": "2024-01-01T00:00:00Z"
+}
+```
+
+### Obter conversa
+
+```http
+GET /api/v1/conversations/{id}
+```
+
+Retorna a conversa com todas as mensagens:
+
+```json
+{
+  "id": "...",
+  "messages": [
+    {
+      "id": "...",
+      "conversation_id": "...",
+      "sender": "USER",
+      "content": "Por que a Terra é plana?",
+      "created_at": "..."
+    },
+    {
+      "id": "...",
+      "conversation_id": "...",
+      "sender": "AI",
+      "content": "A Terra não é plana...",
+      "created_at": "..."
+    }
+  ],
+  "created_at": "..."
+}
+```
+
+Retorna `404` se a conversa não existir.
+
+### Enviar mensagem (REST)
 
 ```http
 POST /api/v1/conversations/{id}/messages
-Authorization: Bearer eyJ...
 Content-Type: application/json
 
 {"content": "Por que a Terra é plana?"}
 ```
 
+| Campo | Tipo | Restrições |
+|-------|------|------------|
+| `content` | `string` | 1–4000 caracteres |
+
+Resposta `200 OK`:
+
 ```json
 {
-  "user_message": { "sender": "USER", "content": "..." },
-  "ai_message": { "sender": "AI", "content": "..." }
+  "user_message": {
+    "id": "...",
+    "conversation_id": "...",
+    "sender": "USER",
+    "content": "Por que a Terra é plana?",
+    "created_at": "..."
+  },
+  "ai_message": {
+    "id": "...",
+    "conversation_id": "...",
+    "sender": "AI",
+    "content": "A Terra não é plana...",
+    "created_at": "..."
+  }
 }
 ```
+
+Retorna `404` se a conversa não existir.
 
 ---
 
@@ -121,10 +161,10 @@ Content-Type: application/json
 ### Conexão
 
 ```
-ws://localhost:8000/api/v1/conversations/{conversation_id}/ws?token=eyJ...
+ws://localhost:8000/api/v1/conversations/{conversation_id}/ws
 ```
 
-A conversa deve existir e pertencer ao usuário do token. A conexão permanece aberta para múltiplas mensagens.
+A conversa deve existir antes de conectar. A conexão permanece aberta para múltiplas mensagens.
 
 ### Cliente → servidor
 
@@ -135,13 +175,18 @@ A conversa deve existir e pertencer ao usuário do token. A conexão permanece a
 }
 ```
 
+| Campo | Tipo | Restrições |
+|-------|------|------------|
+| `type` | `string` | deve ser exatamente `"message"` |
+| `content` | `string` | 1–4000 caracteres |
+
 ### Servidor → cliente (sequência típica)
 
 ```json
-{"type": "user_message", "message": { "...": "..." }}
+{"type": "user_message", "message": {"id": "...", "sender": "USER", "content": "...", "created_at": "..."}}
 {"type": "chunk", "content": "A Terra "}
-{"type": "chunk", "content": "é plana..."}
-{"type": "done", "ai_message": { "...": "..." }}
+{"type": "chunk", "content": "não é plana..."}
+{"type": "done", "ai_message": {"id": "...", "sender": "AI", "content": "...", "created_at": "..."}}
 ```
 
 ### Eventos
@@ -149,26 +194,26 @@ A conversa deve existir e pertencer ao usuário do token. A conexão permanece a
 | Evento | Descrição |
 |--------|-----------|
 | `user_message` | Confirma persistência da mensagem do usuário |
-| `chunk` | Fragmento da resposta da IA (append no UI) |
-| `replace` | Substitui texto acumulado (guard corrigiu a resposta) |
+| `chunk` | Fragmento da resposta da IA (acumular no UI) |
+| `replace` | Substitui todo o texto acumulado (guard corrigiu a resposta) |
 | `done` | Resposta final persistida; inclui `ai_message` completo |
-| `error` | Erro de validação ou conversa não encontrada |
+| `error` | Payload inválido, conversa não encontrada (fecha com código `4404`), ou erro na IA |
 
 ### Exemplo (JavaScript)
 
 ```javascript
-const token = "..."; // obtido em /auth/login ou /auth/register
 const ws = new WebSocket(
-  `ws://localhost:8000/api/v1/conversations/${id}/ws?token=${token}`
+  `ws://localhost:8000/api/v1/conversations/${id}/ws`
 );
 let aiText = "";
 
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
 
-  if (data.type === "chunk") aiText += data.content;
+  if (data.type === "chunk")   aiText += data.content;
   if (data.type === "replace") aiText = data.content;
-  if (data.type === "done") console.log("Final:", data.ai_message.content);
+  if (data.type === "done")    console.log("Final:", data.ai_message.content);
+  if (data.type === "error")   console.error("Erro:", data.detail);
 };
 
 ws.onopen = () => {
@@ -180,4 +225,4 @@ ws.onopen = () => {
 
 ## Guards (ambos os modos)
 
-Entrada e saída passam pelos mesmos guards documentados em [`patterns/prompt-injection.md`](patterns/prompt-injection.md). No WebSocket, se a resposta for corrigida após streaming, o evento `replace` informa o frontend para atualizar o texto exibido.
+Entrada e saída passam pelos mesmos guards documentados em [`patterns/prompt-injection.md`](patterns/prompt-injection.md). No WebSocket, se a resposta for corrigida após o streaming, o evento `replace` instrui o frontend a substituir o texto exibido.
