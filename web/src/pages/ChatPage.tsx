@@ -21,7 +21,9 @@ export function ChatPage() {
   const inputDisabled =
     isSending || isCreatingConversation || isLoading || (!!activeConversationId && !isConnected)
 
-  const showReconnecting = !!activeConversationId && !isConnected && !isLoading
+  // Só exibe "Reconectando" se havia mensagens (conexão anterior existia);
+  // na primeira conexão de uma conversa nova não faz sentido mostrar este aviso.
+  const showReconnecting = !!activeConversationId && !isConnected && !isLoading && messages.length > 0
 
   return (
     <ChatLayout>
